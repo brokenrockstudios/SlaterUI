@@ -20,11 +20,14 @@ SlaterUI is a text-first, declarative UI layer for Unreal Engine. You describe a
 <surface role="UI.Surface.Panel" inset="UI.Space.L" width="360">
   <vbox>
     <text font="UI.Font.Heading" margin="UI.Space.S">Inventory</text>
-    <text wrap="true" margin="UI.Space.S">Drag an item onto a slot to equip it.</text>
-    <text font="UI.Font.Caption" color="UI.Color.TextMuted">12 of 40 slots used</text>
+    <text wrap="true" margin="UI.Space.S">Drag an item onto a slot to equip it. Right-click an item to split the stack.</text>
+    <text font="UI.Font.Caption" color="UI.Color.TextMuted" margin="UI.Space.S">12 of 40 slots used</text>
     <hbox margin="UI.Space.M" halign="right">
-      <surface role="UI.Surface.Button" inset="UI.Space.M" on-click="ui.close">
-        <text color="#FFFFFF">Close</text>
+      <surface role="UI.Surface.Button" inset="UI.Space.M" margin="UI.Space.S">
+        <text color="#FFFFFF">Sort</text>
+      </surface>
+      <surface role="UI.Surface.Panel" inset="UI.Space.M" margin="UI.Space.S">
+        <text>Close</text>
       </surface>
     </hbox>
   </vbox>
@@ -41,7 +44,9 @@ Colors, fonts, spacing and surfaces are *tokens* (`UI.Space.L`, `UI.Color.Accent
 
 Spacing and colors take either a style token or an inline value, so `margin="UI.Space.M"` and `margin="8"` both work, as do `color="UI.Color.Accent"` and `color="#FF8800"`. Use tokens for anything shared and inline values for one-offs. (Fonts and surface roles are token-only.)
 
-<!-- TODO: screenshot of Panel in the Base style and in the Dusk style -->
+| Base | Dusk |
+|------|------|
+| ![Panel in the Base style](Docs/Images/Panel_Base.png) | ![Panel in the Dusk style](Docs/Images/Panel_Dusk.png) |
 
 ## Why does this exist?
 
