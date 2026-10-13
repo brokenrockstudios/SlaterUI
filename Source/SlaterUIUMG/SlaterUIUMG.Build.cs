@@ -16,6 +16,7 @@ public class SlaterUIUMG : ModuleRules
 				"CoreUObject",
 				"Engine",
 				"FieldNotification",
+				"InputCore",
 				"ModelViewViewModel",
 				"Slate",
 				"SlateCore",

@@ -2,6 +2,10 @@
 
 Version format `YYMM.DDRR` (year, month, day, revision of that day). Newest first. Keep entries to one line where possible.
 
+## 2610.1213
+
+- Popup spike harness (T-416): console command `Slater.PopupSpike` in SlaterUIUMG shows an `SMenuAnchor` menu and `MenuRight` submenu in the PIE viewport and logs focus, keys and open/close. No behavior change otherwise.
+
 ## 2610.1212
 
 - Popup menu v1 sample (T-415): `Content/UI/Layouts/ContextMenu.sltr` (footer chevron `ui.toggle:menu`, transparent scrim, popup frame, templates `menu-header` `menu-sep` `menu-item` `menu-plain` `menu-parent` `menu-link`, a Learn more submenu opened by `hover-set-state` that stays open until another row is hovered or the menu closes (the chevron resets it)), Base tokens `UI.Surface.Menu`, `MenuItem` (+`.Hover`), `Divider`, `Scrim` and colors `UI.Color.Menu` `Menu.Hover` `MenuLine` `MenuText` `MenuMuted` `Clear`, eight more SVG icons. Tests `BRS.SlaterUI.ContextMenu.*`, `BRS.SlaterUI.Render.ContextMenu` (needs `-WithRHI`).
