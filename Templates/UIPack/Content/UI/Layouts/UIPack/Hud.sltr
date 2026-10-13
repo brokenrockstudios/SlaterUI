@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<!-- The sample layout of the UI pack template: a small panel in the pack's own style. Rename the folder, keep the folder name in the layout ID (UIPack/Hud). -->
+<surface role="UI.Surface.Panel" inset="UI.Space.M" width="240">
+	<vbox>
+		<text font="UI.Font.Heading" color="UI.Color.Pack.Highlight" margin="UI.Space.S">Hello from a pack</text>
+		<text wrap="true" margin="UI.Space.S">This panel comes from a plugin with no code and no Blueprints.</text>
+	</vbox>
+</surface>

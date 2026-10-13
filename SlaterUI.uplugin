@@ -1,0 +1,53 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "SlaterUI",
+	"Description": "Reads .sltr layout files (a strict XML subset) and builds Slate from them. Standalone.",
+	"Category": "Rock",
+	"CreatedBy": "Broken Rock Studios",
+	"CreatedByURL": "",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"CanContainContent": true,
+	"IsBetaVersion": false,
+	"IsExperimentalVersion": true,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "SlaterUI",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "SlaterUIUMG",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "SlaterUIGameFeatures",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		},
+		{
+			"Name": "SlaterUIEditor",
+			"Type": "Editor",
+			"LoadingPhase": "PostEngineInit"
+		},
+		{
+			"Name": "SlaterUITests",
+			"Type": "UncookedOnly",
+			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "GameFeatures",
+			"Enabled": true
+		},
+		{
+			"Name": "ModelViewViewModel",
+			"Enabled": true
+		}
+	]
+}

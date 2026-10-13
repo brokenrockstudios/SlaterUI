@@ -1,0 +1,159 @@
+// Copyright Broken Rock Studios LLC. All Rights Reserved.
+
+#include "SlaterLayoutWidget.h"
+
+#include "SlaterObjectScope.h"
+#include "SlaterView.h"
+
+#include "Blueprint/UserWidget.h"
+#include "View/MVVMView.h"
+#include "Widgets/SNullWidget.h"
+
+#define LOCTEXT_NAMESPACE "SlaterUIUMG"
+
+namespace Slater
+{
+	bool SetViewModelContext(SSlaterView& View, UObject* ViewModel)
+	{
+		return View.SetContext(ViewModel ? MakeObjectScope(ViewModel) : TSharedPtr<ISlaterScope>());
+	}
+}
+
+namespace
+{
+	TSharedRef<SSlaterView> MakeView(const FString& LayoutId, FName StyleName, bool bMock)
+	{
+		return SNew(SSlaterView)
+			.LayoutId(LayoutId)
+			.StyleName(StyleName.IsNone() ? FName(TEXT("Base")) : StyleName)
+			.UseMockContext(bMock);
+	}
+}
+
+// USlaterLayoutWidget
+
+TSharedRef<SWidget> USlaterLayoutWidget::RebuildWidget()
+{
+	const TSharedRef<SSlaterView> NewView = MakeView(LayoutId, StyleName, IsDesignTime());
+	View = NewView;
+	RefreshViewModel();
+	return NewView;
+}
+
+void USlaterLayoutWidget::SynchronizeProperties()
+{
+	Super::SynchronizeProperties();
+	// The dropdown or the style changed after the view was made (the designer edits them live).
+	if (const TSharedPtr<SSlaterView> Current = View.Pin())
+	{
+		if (Current->GetStyleName() != (StyleName.IsNone() ? FName(TEXT("Base")) : StyleName))
+		{
+			Current->SetStyle(StyleName.IsNone() ? FName(TEXT("Base")) : StyleName);
+		}
+		if (Current->GetLayoutId() != LayoutId)
+		{
+			Current->SetLayout(LayoutId);
+		}
+	}
+}
+
+void USlaterLayoutWidget::ReleaseSlateResources(bool bReleaseChildren)
+{
+	Super::ReleaseSlateResources(bReleaseChildren);
+	View.Reset();
+}
+
+void USlaterLayoutWidget::SetLayoutId(const FString& InLayoutId)
+{
+	LayoutId = InLayoutId;
+	if (const TSharedPtr<SSlaterView> Current = View.Pin())
+	{
+		Current->SetLayout(LayoutId);
+	}
+}
+
+void USlaterLayoutWidget::SetViewModel(UObject* InViewModel)
+{
+	ViewModel = InViewModel;
+	if (const TSharedPtr<SSlaterView> Current = View.Pin())
+	{
+		Slater::SetViewModelContext(*Current, InViewModel);
+	}
+}
+
+void USlaterLayoutWidget::RefreshViewModel()
+{
+	if (!ViewModelName.IsNone())
+	{
+		// Widget -> its widget tree -> the user widget that owns the tree.
+		if (const UUserWidget* Owner = GetTypedOuter<UUserWidget>())
+		{
+			if (const UMVVMView* MvvmView = Owner->GetExtension<UMVVMView>())
+			{
+				ViewModel = MvvmView->GetViewModel(ViewModelName).GetObject();
+			}
+		}
+	}
+	if (const TSharedPtr<SSlaterView> Current = View.Pin())
+	{
+		if (UObject* Object = ViewModel.Get())
+		{
+			Slater::SetViewModelContext(*Current, Object);
+		}
+	}
+}
+
+TArray<FString> USlaterLayoutWidget::GetLayoutOptions() const
+{
+	TArray<FString> Ids;
+	Slater::GetLayoutIds(Ids);
+	return Ids;
+}
+
+#if WITH_EDITOR
+const FText USlaterLayoutWidget::GetPaletteCategory()
+{
+	return LOCTEXT("PaletteCategory", "Slater");
+}
+#endif
+
+// USlaterLayoutUserWidget
+
+TSharedRef<SWidget> USlaterLayoutUserWidget::RebuildWidget()
+{
+	const TSharedRef<SSlaterView> NewView = MakeView(LayoutId, StyleName, false);
+	View = NewView;
+	if (UObject* Object = ViewModel.Get())
+	{
+		Slater::SetViewModelContext(*NewView, Object);
+	}
+	return NewView;
+}
+
+void USlaterLayoutUserWidget::ReleaseSlateResources(bool bReleaseChildren)
+{
+	Super::ReleaseSlateResources(bReleaseChildren);
+	View.Reset();
+}
+
+void USlaterLayoutUserWidget::Configure(const FString& InLayoutId, FName InStyleName)
+{
+	LayoutId = InLayoutId;
+	StyleName = InStyleName;
+	if (const TSharedPtr<SSlaterView> Current = View.Pin())
+	{
+		Current->SetStyle(StyleName.IsNone() ? FName(TEXT("Base")) : StyleName);
+		Current->SetLayout(LayoutId);
+	}
+}
+
+void USlaterLayoutUserWidget::SetViewModel(UObject* InViewModel)
+{
+	ViewModel = InViewModel;
+	if (const TSharedPtr<SSlaterView> Current = View.Pin())
+	{
+		Slater::SetViewModelContext(*Current, InViewModel);
+	}
+}
+
+#undef LOCTEXT_NAMESPACE

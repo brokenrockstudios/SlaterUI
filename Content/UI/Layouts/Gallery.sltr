@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<!-- The plain Button is interactive: move the mouse over it and press to try its states. Every surface state and text style the stock style defines, for review. The stock style defines no disabled surface, so that button falls back to the plain button. -->
+<surface role="UI.Surface.Background" inset="UI.Space.L" width="640">
+	<vbox>
+		<text font="UI.Font.Heading" margin="UI.Space.M">Surface states</text>
+		<hbox margin="UI.Space.S">
+			<surface role="UI.Surface.Panel" inset="UI.Space.M" width="140" margin="UI.Space.S">
+				<text>Panel</text>
+			</surface>
+			<surface role="UI.Surface.Panel" state="hover" inset="UI.Space.M" width="140" margin="UI.Space.S">
+				<text>Panel hover</text>
+			</surface>
+		</hbox>
+		<hbox margin="UI.Space.S">
+			<surface role="UI.Surface.Button" interactive="true" inset="UI.Space.M" width="140" margin="UI.Space.S">
+				<text color="#FFFFFF">Button</text>
+			</surface>
+			<surface role="UI.Surface.Button" state="hover" inset="UI.Space.M" width="140" margin="UI.Space.S">
+				<text color="#FFFFFF">Hover</text>
+			</surface>
+			<surface role="UI.Surface.Button" state="pressed" inset="UI.Space.M" width="140" margin="UI.Space.S">
+				<text color="#FFFFFF">Pressed</text>
+			</surface>
+			<surface role="UI.Surface.Button" state="disabled" inset="UI.Space.M" width="140" margin="UI.Space.S">
+				<text color="#FFFFFF">Disabled</text>
+			</surface>
+		</hbox>
+		<text font="UI.Font.Heading" margin="UI.Space.M">Text styles</text>
+		<surface role="UI.Surface.Panel" inset="UI.Space.M" margin="UI.Space.S">
+			<vbox>
+				<text font="UI.Font.Heading">Heading</text>
+				<text>Body text in the default font and color.</text>
+				<text font="UI.Font.Caption">Caption in italic.</text>
+				<text color="UI.Color.TextMuted">Muted text.</text>
+				<text color="UI.Color.Accent">Accent text.</text>
+				<text color="UI.Color.Danger">Danger text.</text>
+				<text wrap="true" justify="center">Centered text that is long enough to wrap onto a second line when the panel is narrow, which this one is not.</text>
+				<text justify="right">Right aligned</text>
+			</vbox>
+		</surface>
+	</vbox>
+</surface>

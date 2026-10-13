@@ -1,0 +1,108 @@
+{
+	"Title": "Backpack",
+	"Cells": [
+		{
+			"Index": 0,
+			"State": "normal"
+		},
+		{
+			"Index": 1,
+			"State": "normal"
+		},
+		{
+			"Index": 2,
+			"State": "normal"
+		},
+		{
+			"Index": 3,
+			"State": "normal"
+		},
+		{
+			"Index": 4,
+			"State": "normal"
+		},
+		{
+			"Index": 5,
+			"State": "normal"
+		},
+		{
+			"Index": 6,
+			"State": "normal"
+		},
+		{
+			"Index": 7,
+			"State": "hover"
+		},
+		{
+			"Index": 8,
+			"State": "normal"
+		},
+		{
+			"Index": 9,
+			"State": "normal"
+		},
+		{
+			"Index": 10,
+			"State": "normal"
+		},
+		{
+			"Index": 11,
+			"State": "normal"
+		},
+		{
+			"Index": 12,
+			"State": "normal"
+		},
+		{
+			"Index": 13,
+			"State": "normal"
+		},
+		{
+			"Index": 14,
+			"State": "normal"
+		},
+		{
+			"Index": 15,
+			"State": "normal"
+		},
+		{
+			"Index": 16,
+			"State": "normal"
+		},
+		{
+			"Index": 17,
+			"State": "normal"
+		},
+		{
+			"Index": 18,
+			"State": "normal"
+		},
+		{
+			"Index": 19,
+			"State": "normal"
+		}
+	],
+	"Items": [
+		{
+			"Id": "sword",
+			"Slot": 3,
+			"Icon": "icon1",
+			"Count": 1,
+			"Locked": false
+		},
+		{
+			"Id": "arrows",
+			"Slot": 5,
+			"Icon": "icon2",
+			"Count": 64,
+			"Locked": false
+		},
+		{
+			"Id": "key",
+			"Slot": 12,
+			"Icon": "icon3",
+			"Count": 1,
+			"Locked": true
+		}
+	]
+}

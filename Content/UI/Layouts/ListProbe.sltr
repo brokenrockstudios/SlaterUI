@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!-- T-351 list probe: a backpack grid. The cells are bare surfaces; an item is an icon, a count and a lock. Data: ListProbe.mock.json. -->
+<surface role="UI.Surface.Panel" inset="UI.Space.M">
+	<vbox>
+		<text font="UI.Font.Heading" margin="UI.Space.S">{Title}</text>
+		<overlay>
+			<repeat source="{Cells}" key="Index" columns="10" cell-width="48" cell-height="48">
+				<surface role="UI.Surface.Button" state="{State}"/>
+			</repeat>
+			<repeat source="{Items}" key="Id" at="Slot" columns="10" cell-width="48" cell-height="48">
+				<overlay>
+					<image src="{Icon}" size="36" halign="center" valign="center"/>
+					<text font="UI.Font.Caption" halign="right" valign="bottom">{Count}</text>
+					<image src="lock" size="12" visible="{Locked}" halign="left" valign="top"/>
+				</overlay>
+			</repeat>
+		</overlay>
+	</vbox>
+</surface>

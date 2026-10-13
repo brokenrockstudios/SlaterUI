@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<!-- A titled panel: title, body text, a caption and two buttons. The shape of the T-145 spike panel. -->
+<surface role="UI.Surface.Panel" inset="UI.Space.L" width="360">
+	<vbox>
+		<text font="UI.Font.Heading" margin="UI.Space.S">Inventory</text>
+		<text wrap="true" margin="UI.Space.S">Drag an item onto a slot to equip it. Right-click an item to split the stack.</text>
+		<text font="UI.Font.Caption" color="UI.Color.TextMuted" margin="UI.Space.S">12 of 40 slots used</text>
+		<hbox margin="UI.Space.M" halign="right">
+			<surface role="UI.Surface.Button" inset="UI.Space.M" margin="UI.Space.S">
+				<text color="#FFFFFF">Sort</text>
+			</surface>
+			<surface role="UI.Surface.Panel" inset="UI.Space.M" margin="UI.Space.S">
+				<text>Close</text>
+			</surface>
+		</hbox>
+	</vbox>
+</surface>

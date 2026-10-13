@@ -1,0 +1,22 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "UIPack",
+	"Description": "A content-only UI pack: SlaterUI layouts and styles shown by an Add Slater Layout game feature action. No C++, no Blueprints.",
+	"Category": "Game Features",
+	"CreatedBy": "",
+	"CanContainContent": true,
+	"ExplicitlyLoaded": true,
+	"BuiltInInitialFeatureState": "Active",
+	"Plugins": [
+		{
+			"Name": "GameFeatures",
+			"Enabled": true
+		},
+		{
+			"Name": "SlaterUI",
+			"Enabled": true
+		}
+	]
+}

@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<!-- The sample style of the UI pack template: Dusk plus one color of the pack's own. A style name is global, so give yours a name that is yours. -->
+<style name="UIPack" extends="Dusk">
+	<color name="UI.Color.Pack.Highlight" value="#F2B84B"/>
+</style>

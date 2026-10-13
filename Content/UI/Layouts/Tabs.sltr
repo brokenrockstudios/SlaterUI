@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<!-- A tabbed panel from markup alone (T-353): <state> holds the selected tab, set-state changes it on a click,
+     visible-when shows one page, and ui.toggle flips a yes/no state for the details line. -->
+<surface role="UI.Surface.Panel" inset="UI.Space.L" width="360">
+	<state name="tab" default="gear"/>
+	<state name="details" default="false"/>
+	<vbox>
+		<hbox>
+			<surface id="TabGear" role="UI.Surface.Button" inset="UI.Space.M" margin="UI.Space.S" set-state="tab=gear">
+				<text>Gear</text>
+			</surface>
+			<surface id="TabMap" role="UI.Surface.Button" inset="UI.Space.M" margin="UI.Space.S" set-state="tab=map">
+				<text>Map</text>
+			</surface>
+			<surface id="Details" role="UI.Surface.Button" inset="UI.Space.M" margin="UI.Space.S" on-click="ui.toggle:details">
+				<text>Details</text>
+			</surface>
+		</hbox>
+		<text id="PageGear" visible-when="tab=gear" wrap="true" margin="UI.Space.S">Gear: what you carry and wear.</text>
+		<text id="PageMap" visible-when="tab=map" wrap="true" margin="UI.Space.S">Map: where you have been.</text>
+		<text id="DetailsLine" visible-when="details=true" font="UI.Font.Caption" color="UI.Color.TextMuted" margin="UI.Space.S">Details are on.</text>
+	</vbox>
+</surface>

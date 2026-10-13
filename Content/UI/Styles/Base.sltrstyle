@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<!-- The shipped base style. Other styles extend it and override what differs. -->
+<style name="Base">
+	<color name="UI.Color.Background" value="#F2F3F5"/>
+	<color name="UI.Color.Panel" value="#FFFFFF"/>
+	<color name="UI.Color.Border" value="#C9CDD4"/>
+	<color name="UI.Color.Text" value="#1D2129"/>
+	<color name="UI.Color.TextMuted" value="#6B7280"/>
+	<color name="UI.Color.Accent" value="#2F6FEB"/>
+	<color name="UI.Color.Accent.Hover" value="#4F86F0"/>
+	<color name="UI.Color.Accent.Pressed" value="#1F58C7"/>
+	<color name="UI.Color.Danger" value="#D64545"/>
+
+	<metric name="UI.Space.S" value="4"/>
+	<metric name="UI.Space.M" value="8"/>
+	<metric name="UI.Space.L" value="16"/>
+	<metric name="UI.Radius.M" value="4"/>
+	<metric name="UI.Border.Thin" value="1"/>
+
+	<font name="UI.Font.Body" role="Regular" size="14"/>
+	<font name="UI.Font.Heading" role="Bold" size="20"/>
+	<font name="UI.Font.Caption" role="Italic" size="11"/>
+
+	<surface name="UI.Surface.Background" fill="UI.Color.Background"/>
+	<surface name="UI.Surface.Panel" fill="UI.Color.Panel" border="UI.Color.Border" border-width="UI.Border.Thin" radius="UI.Radius.M"/>
+	<surface name="UI.Surface.Button" fill="UI.Color.Accent" radius="UI.Radius.M"/>
+	<surface name="UI.Surface.Button.Hover" fill="UI.Color.Accent.Hover" radius="UI.Radius.M"/>
+	<surface name="UI.Surface.Button.Pressed" fill="UI.Color.Accent.Pressed" radius="UI.Radius.M"/>
+</style>

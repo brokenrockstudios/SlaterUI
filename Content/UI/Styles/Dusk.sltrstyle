@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<!-- A dark style: recolors Base and changes nothing else. -->
+<style name="Dusk" extends="Base">
+	<color name="UI.Color.Background" value="#14161B"/>
+	<color name="UI.Color.Panel" value="#1E2128"/>
+	<color name="UI.Color.Border" value="#363B46"/>
+	<color name="UI.Color.Text" value="#E6E8EC"/>
+	<color name="UI.Color.TextMuted" value="#9AA1AD"/>
+	<color name="UI.Color.Accent" value="#5B8DEF"/>
+	<color name="UI.Color.Accent.Hover" value="#7AA3F4"/>
+	<color name="UI.Color.Accent.Pressed" value="#406FCB"/>
+</style>
