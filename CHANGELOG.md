@@ -4,7 +4,7 @@ Version format `YYMM.DDRR` (year, month, day, revision of that day). Newest firs
 
 ## 2610.1212
 
-- Popup menu v1 sample (T-415): `Content/UI/Layouts/ContextMenu.sltr` (footer chevron `ui.toggle:menu`, transparent scrim, popup frame, templates `menu-header` `menu-sep` `menu-item` `menu-plain` `menu-parent` `menu-link`, a Learn more submenu opened by `hover-set-state` and closed by the frame's `leave-set-state`), Base tokens `UI.Surface.Menu`, `MenuItem` (+`.Hover`), `Divider`, `Scrim` and colors `UI.Color.Menu` `Menu.Hover` `MenuLine` `MenuText` `MenuMuted` `Clear`, eight more SVG icons. Tests `BRS.SlaterUI.ContextMenu.*`, `BRS.SlaterUI.Render.ContextMenu` (needs `-WithRHI`).
+- Popup menu v1 sample (T-415): `Content/UI/Layouts/ContextMenu.sltr` (footer chevron `ui.toggle:menu`, transparent scrim, popup frame, templates `menu-header` `menu-sep` `menu-item` `menu-plain` `menu-parent` `menu-link`, a Learn more submenu opened by `hover-set-state` that stays open until another row is hovered or the menu closes (the chevron resets it)), Base tokens `UI.Surface.Menu`, `MenuItem` (+`.Hover`), `Divider`, `Scrim` and colors `UI.Color.Menu` `Menu.Hover` `MenuLine` `MenuText` `MenuMuted` `Clear`, eight more SVG icons. Tests `BRS.SlaterUI.ContextMenu.*`, `BRS.SlaterUI.Render.ContextMenu` (needs `-WithRHI`).
 
 ## 2610.1211
 

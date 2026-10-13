@@ -64,7 +64,14 @@ TEST_CLASS(SlaterContextMenuTests, "BRS.SlaterUI.ContextMenu")
 
 	TSharedPtr<SSlaterSurface> Surf(const TSharedRef<SSlaterView>& View, const TCHAR* Id) const
 	{
-		return StaticCastSharedPtr<SSlaterSurface>(View->FindById(Id));
+		// An element with a width or height has its id on the sizing box around it: look one level down for the surface.
+		TSharedPtr<SWidget> Widget = View->FindById(Id);
+		if (Widget.IsValid() && Widget->GetType() != FName(TEXT("SSlaterSurface")))
+		{
+			FChildren* Children = Widget->GetChildren();
+			Widget = Children && Children->Num() > 0 ? TSharedPtr<SWidget>(Children->GetChildAt(0)) : TSharedPtr<SWidget>();
+		}
+		return Widget.IsValid() && Widget->GetType() == FName(TEXT("SSlaterSurface")) ? StaticCastSharedPtr<SSlaterSurface>(Widget) : nullptr;
 	}
 
 	bool Click(const TSharedRef<SSlaterView>& View, const TCHAR* Id) const
@@ -105,6 +112,7 @@ TEST_CLASS(SlaterContextMenuTests, "BRS.SlaterUI.ContextMenu")
 			.ClientSize(FVector2D(View->GetDesiredSize()))
 			.ScreenPosition(FVector2D(100.f, 100.f))
 			.SizingRule(ESizingRule::FixedSize)
+			.CreateTitleBar(false)
 			.SupportsMaximize(false)
 			.SupportsMinimize(false)
 			[View];
@@ -146,6 +154,35 @@ TEST_CLASS(SlaterContextMenuTests, "BRS.SlaterUI.ContextMenu")
 			ASSERT_THAT(IsNotNull(Brush));
 			ASSERT_THAT(IsTrue(Brush->GetImageType() == ESlateBrushImageType::Vector));
 		}
+	}
+
+	TEST_METHOD(OpeningTheMenu_DoesNotResizeThePage_EvenWithTheSubmenuOpen)
+	{
+		// The overlay is as big as its biggest layer: a popup taller than the page would stretch the page and push the footer down.
+		const TSharedRef<SSlaterView> View = MakeView();
+		View->SlatePrepass(1.f);
+		const FVector2f Closed = View->GetDesiredSize();
+		Click(View, TEXT("Chevron"));
+		View->SetState(TEXT("sub"), TEXT("learn"));
+		View->SlatePrepass(1.f);
+		ASSERT_THAT(IsTrue(View->GetDesiredSize().Equals(Closed, 0.5f)));
+	}
+
+	TEST_METHOD(ThePopup_SitsAboveTheChevron_NotAtTheOppositeEdge)
+	{
+		const TSharedRef<SSlaterView> View = MakeView();
+		Click(View, TEXT("Chevron"));
+		View->SlatePrepass(1.f);
+		const TSharedRef<SWindow> Window = SNew(SWindow).ClientSize(FVector2D(View->GetDesiredSize())).ScreenPosition(FVector2D(100.f, 100.f)).SizingRule(ESizingRule::FixedSize)
+			.CreateTitleBar(false)[View];
+		Window->SlatePrepass(1.f);
+		FSlateWindowElementList Elements(Window);
+		Window->PaintWindow(0.0, 0.f, Elements, FWidgetStyle(), true);
+		const FGeometry Menu = View->FindById(TEXT("Menu"))->GetPaintSpaceGeometry();
+		const FGeometry Chevron = View->FindById(TEXT("Chevron"))->GetPaintSpaceGeometry();
+		// Above it (the menu's bottom is over the chevron's top), and on the chevron's side of the view (right half).
+		ASSERT_THAT(IsTrue(Menu.GetAbsolutePositionAtCoordinates(FVector2f(0.f, 1.f)).Y <= Chevron.GetAbsolutePosition().Y));
+		ASSERT_THAT(IsTrue(Menu.GetAbsolutePositionAtCoordinates(FVector2f(0.5f, 0.f)).X > Window->GetClientSizeInScreen().X * 0.5));
 	}
 
 	TEST_METHOD(TheChevron_OpensAndClosesTheMenu)
@@ -241,7 +278,7 @@ TEST_CLASS(SlaterContextMenuTests, "BRS.SlaterUI.ContextMenu")
 		ASSERT_THAT(IsTrue(IsOpen(View)));
 	}
 
-	TEST_METHOD(TheSubmenu_StaysOpenAcrossTheGap_AndClosesWhenThePointerLeavesThePopup)
+	TEST_METHOD(TheSubmenu_StaysOpenWherever_ThePointerGoes_UntilAnotherRowIsHovered)
 	{
 		const TSharedRef<SSlaterView> View = MakeView();
 		Click(View, TEXT("Chevron"));
@@ -261,11 +298,30 @@ TEST_CLASS(SlaterContextMenuTests, "BRS.SlaterUI.ContextMenu")
 		ASSERT_THAT(IsTrue(CmSame(StateOf(View, TEXT("sub")), TEXT("learn"))));
 		Terms->OnMouseLeave(CmLeftMouse());
 		ASSERT_THAT(IsTrue(Shown(View, TEXT("Submenu"))));
-		// Leaving the whole popup closes the submenu; the menu itself stays open until a click.
+		// Leaving the whole popup does NOT close it (forgiving by design): it stays until another row is hovered or the menu closes.
 		Popup->OnMouseLeave(CmLeftMouse());
+		ASSERT_THAT(IsTrue(CmSame(StateOf(View, TEXT("sub")), TEXT("learn"))));
+		ASSERT_THAT(IsTrue(Shown(View, TEXT("Submenu"))));
+		ASSERT_THAT(IsTrue(IsOpen(View)));
+		Surf(View, TEXT("ItemSettings"))->OnMouseEnter(Geometry, CmLeftMouse());
+		ASSERT_THAT(IsFalse(Shown(View, TEXT("Submenu"))));
+	}
+
+	TEST_METHOD(AClosedMenu_DoesNotReopenWithTheSubmenu_OnceThePointerReachesTheChevron)
+	{
+		const TSharedRef<SSlaterView> View = MakeView();
+		Click(View, TEXT("Chevron"));
+		Surf(View, TEXT("ItemLearn"))->OnMouseEnter(FGeometry(), CmLeftMouse());
+		ASSERT_THAT(IsTrue(Shown(View, TEXT("Submenu"))));
+		// Closed by a click outside; the submenu value is still `learn`, but the frame is collapsed with it.
+		ASSERT_THAT(IsTrue(Click(View, TEXT("Scrim"))));
+		ASSERT_THAT(IsFalse(Shown(View, TEXT("Popup"))));
+		// The pointer goes to the chevron before it clicks it: that resets the submenu.
+		Surf(View, TEXT("Chevron"))->OnMouseEnter(FGeometry(), CmLeftMouse());
+		Click(View, TEXT("Chevron"));
+		ASSERT_THAT(IsTrue(IsOpen(View)));
 		ASSERT_THAT(IsTrue(CmSame(StateOf(View, TEXT("sub")), TEXT("none"))));
 		ASSERT_THAT(IsFalse(Shown(View, TEXT("Submenu"))));
-		ASSERT_THAT(IsTrue(IsOpen(View)));
 	}
 
 	TEST_METHOD(ASubmenuRow_FiresItsCommand_AndClosesTheMenu)
@@ -309,8 +365,8 @@ TEST_CLASS(SlaterContextMenuTests, "BRS.SlaterUI.ContextMenu")
 		ASSERT_THAT(IsFalse(Open.IsEmpty()));
 		ASSERT_THAT(IsFalse(PathHas(Open, View->FindById(TEXT("PageAction")))));
 		ASSERT_THAT(IsTrue(PathHas(Open, View->FindById(TEXT("Popup")))));
-		// A point on the page outside the popup (the middle of the footer) reaches the scrim.
-		const TArray<TSharedRef<SWidget>> Outside = WidgetsAtCenterOf(View, TEXT("Footer"));
+		// A point on the page outside the popup (the avatar, at the far left of the footer) reaches the scrim.
+		const TArray<TSharedRef<SWidget>> Outside = WidgetsAtCenterOf(View, TEXT("Avatar"));
 		ASSERT_THAT(IsTrue(PathHas(Outside, View->FindById(TEXT("Scrim")))));
 		ASSERT_THAT(IsFalse(PathHas(Outside, View->FindById(TEXT("Popup")))));
 	}

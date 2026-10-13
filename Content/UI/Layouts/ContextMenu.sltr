@@ -1,10 +1,10 @@
 <?xml version="1.0"?>
 <!-- A popup menu from markup alone (T-415, v1: instant). A footer row with a chevron opens `menu`; the chevron toggles it, a click on the
      transparent scrim (any click outside the popup) or on an item closes it. An item sets menu=false and fires its command in one click.
-     "Learn more" opens a submenu by hovering: every row sets `sub` when the pointer enters it (hover-set-state), and the popup frame
-     sets sub=none when the pointer leaves the whole popup (leave-set-state), so the gap between menu and submenu keeps it open.
-     The popup is a layer inside the view's rectangle (it cannot leave the view or flip at an edge) and its submenu is aligned to the
-     bottom of the menu, not to its row. The icons are white strokes (Content/UI/Icons), so the menu is dark in every style. -->
+     "Learn more" opens a submenu by hovering (hover-set-state on every row) and it stays open, however the pointer moves, until another
+     row is hovered or the menu closes (forgiving for slow or shaky pointers; no timer). The chevron resets it when the pointer reaches it.
+     The popup is a layer inside the view's rectangle, anchored above the chevron by layout (it cannot leave the view or flip at an
+     edge, and it must be shorter than the page), and its submenu is aligned to the bottom of the menu, not to its row. The icons are white strokes (Content/UI/Icons), so the menu is dark in every style. -->
 <overlay>
 	<state name="menu" default="false"/>
 	<state name="sub" default="none"/>
@@ -55,17 +55,17 @@
 	</template>
 
 	<!-- Layer 0: the page. PageAction sits where the popup opens, so a test can click it through the closed popup layer. -->
-	<surface id="Page" role="UI.Surface.Panel" inset="UI.Space.L" width="560" height="460">
+	<surface id="Page" role="UI.Surface.Panel" inset="UI.Space.L" width="560" height="620">
 		<vbox>
 			<text font="UI.Font.Heading">Account</text>
 			<text font="UI.Font.Caption" color="UI.Color.TextMuted" margin="UI.Space.S">The page under the menu. Open it with the chevron at the bottom.</text>
 			<spacer fill="1"/>
-			<surface id="PageAction" role="UI.Surface.Button" inset="UI.Space.M" margin="UI.Space.S" halign="left" on-click="Page.Action">
+			<surface id="PageAction" role="UI.Surface.Button" inset="UI.Space.M" margin="UI.Space.S" halign="right" on-click="Page.Action">
 				<text color="UI.Color.Panel">A button under the popup</text>
 			</surface>
 			<surface id="Footer" role="UI.Surface.Panel" inset="UI.Space.M" height="56">
 				<hbox>
-					<surface role="UI.Surface.Button" inset="UI.Space.M" interactive="false" valign="center">
+					<surface id="Avatar" role="UI.Surface.Button" inset="UI.Space.M" interactive="false" valign="center">
 						<image src="User" size="20"/>
 					</surface>
 					<vbox valign="center" margin="UI.Space.M">
@@ -73,7 +73,7 @@
 						<text font="UI.Font.Caption" color="UI.Color.TextMuted">Pro plan</text>
 					</vbox>
 					<spacer fill="1"/>
-					<surface id="Chevron" role="UI.Surface.Button" inset="UI.Space.M" valign="center" on-click="ui.toggle:menu">
+					<surface id="Chevron" role="UI.Surface.Button" inset="UI.Space.M" valign="center" on-click="ui.toggle:menu" hover-set-state="sub=none">
 						<image src="ChevronUp" size="16"/>
 					</surface>
 				</hbox>
@@ -84,11 +84,22 @@
 	<!-- Layer 1: the scrim. Transparent, over the whole view while the menu is open, so a click anywhere outside the popup closes it. -->
 	<surface id="Scrim" role="UI.Surface.Scrim" visible-when="menu=true" set-state="menu=false" interactive="false"/>
 
-	<!-- Layer 2: the popup frame, at the bottom left above the footer (the spacer is the footer's height and a gap). The frame is the
-	     pointer's "inside": its leave closes the submenu, and a click on its gap closes the menu like the scrim. -->
-	<surface id="Popup" role="UI.Surface.Scrim" visible-when="menu=true" set-state="menu=false" leave-set-state="sub=none" interactive="false" halign="left" valign="bottom" margin="UI.Space.M">
+	<!-- Layer 2: the popup frame, at the bottom right above the chevron (the spacer is the footer's height and a gap). The page is
+	     taller than the popup: the overlay is as big as its biggest layer, so a popup taller than the page would stretch it. The frame takes
+	     a click on its gap, which closes the menu like the scrim. -->
+	<surface id="Popup" role="UI.Surface.Scrim" visible-when="menu=true" set-state="menu=false" interactive="false" halign="right" valign="bottom" margin="UI.Space.L">
 		<vbox>
 			<hbox>
+				<!-- The submenu opens to the left of the menu: the popup is right-aligned above the chevron, so the menu stays put and
+				     the frame grows leftwards, toward the page. -->
+				<surface id="Submenu" role="UI.Surface.Menu" visible-when="sub=learn" inset="UI.Space.S" width="210" valign="bottom" set-state="menu=true" interactive="false">
+					<vbox>
+						<menu-link id="LinkTerms" label="Terms and policies" cmd="Account.Terms"/>
+						<menu-link id="LinkPrivacy" label="Privacy policy" cmd="Account.Privacy"/>
+						<menu-link id="LinkUsage" label="Usage policy" cmd="Account.Usage"/>
+					</vbox>
+				</surface>
+				<spacer visible-when="sub=learn" width="4"/>
 				<!-- A click on the menu's own header, dividers or padding is swallowed (set-state to the value it has), so it stays open. -->
 				<surface id="Menu" role="UI.Surface.Menu" inset="UI.Space.S" width="250" valign="bottom" set-state="menu=true" interactive="false">
 					<vbox>
@@ -102,14 +113,6 @@
 						<menu-parent id="ItemLearn" icon="Book" label="Learn more"/>
 						<menu-sep/>
 						<menu-plain id="ItemLogout" icon="Logout" label="Log out" cmd="Account.Logout"/>
-					</vbox>
-				</surface>
-				<spacer visible-when="sub=learn" width="4"/>
-				<surface id="Submenu" role="UI.Surface.Menu" visible-when="sub=learn" inset="UI.Space.S" width="190" valign="bottom" set-state="menu=true" interactive="false">
-					<vbox>
-						<menu-link id="LinkTerms" label="Terms and policies" cmd="Account.Terms"/>
-						<menu-link id="LinkPrivacy" label="Privacy policy" cmd="Account.Privacy"/>
-						<menu-link id="LinkUsage" label="Usage policy" cmd="Account.Usage"/>
 					</vbox>
 				</surface>
 			</hbox>
