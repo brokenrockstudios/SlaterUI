@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<!-- A sidebar that collapses to an icon rail (T-403, v1: instant). The hamburger sits at the far left, so it does not move when the panel opens or closes, and flips the `expanded` state; labels, the
+     title, a spacer and the logo (balancing the hamburger on the left) carry visible-when, so the column is as wide as an icon plus padding when collapsed and
+     as wide as the header when expanded. Rows have a fixed height, so only the width changes. The outer hbox keeps the sidebar at its content width
+     when a host stretches the view. Icons are SVG files in Content/UI/Icons, supplied by Slater::MakePluginIconSource. -->
+<hbox>
+	<state name="expanded" default="true"/>
+	<template name="nav-item" params="icon label">
+		<surface role="UI.Surface.Button" inset="UI.Space.M" margin="UI.Space.S" height="40">
+			<hbox>
+				<image src="$icon" size="20" valign="center"/>
+				<spacer visible-when="expanded=true" width="UI.Space.M"/>
+				<text visible-when="expanded=true" color="UI.Color.Panel" valign="center">$label</text>
+			</hbox>
+		</surface>
+	</template>
+	<surface role="UI.Surface.Panel" inset="UI.Space.M" height="440">
+		<vbox>
+			<hbox>
+				<surface id="Hamburger" role="UI.Surface.Button" inset="UI.Space.M" margin="UI.Space.S" on-click="ui.toggle:expanded">
+					<image src="Menu" size="20"/>
+				</surface>
+				<text id="Title" visible-when="expanded=true" font="UI.Font.Heading" valign="center" margin="UI.Space.S">Skybrook</text>
+				<spacer id="HeaderGap" visible-when="expanded=true" width="24"/>
+				<image id="Logo" visible-when="expanded=true" src="Rock" size="96" valign="center" margin="UI.Space.S"/>
+			</hbox>
+			<nav-item id="NavHome" icon="Home" label="Home"/>
+			<nav-item id="NavProfile" icon="User" label="Profile"/>
+			<nav-item id="NavMessages" icon="Mail" label="Messages"/>
+			<nav-item id="NavFiles" icon="Folder" label="Files"/>
+			<nav-item id="NavSettings" icon="Settings" label="Settings"/>
+			<spacer fill="1"/>
+			<nav-item id="NavLogout" icon="Logout" label="Log out"/>
+		</vbox>
+	</surface>
+</hbox>

@@ -8,6 +8,8 @@ namespace
 {
 	const TCHAR* const StateTag = TEXT("state");
 	const TCHAR* const SetStateAttr = TEXT("set-state");
+	const TCHAR* const HoverSetStateAttr = TEXT("hover-set-state");
+	const TCHAR* const LeaveSetStateAttr = TEXT("leave-set-state");
 	const TCHAR* const VisibleWhenAttr = TEXT("visible-when");
 	const TCHAR* const OnClickAttr = TEXT("on-click");
 
@@ -52,7 +54,8 @@ namespace
 		for (const FSlaterAttribute& Attr : Node.Attributes)
 		{
 			FString Key, Value;
-			if (Attr.Name.Equals(SetStateAttr, ESearchCase::CaseSensitive) || Attr.Name.Equals(VisibleWhenAttr, ESearchCase::CaseSensitive))
+			if (Attr.Name.Equals(SetStateAttr, ESearchCase::CaseSensitive) || Attr.Name.Equals(VisibleWhenAttr, ESearchCase::CaseSensitive)
+				|| Attr.Name.Equals(HoverSetStateAttr, ESearchCase::CaseSensitive) || Attr.Name.Equals(LeaveSetStateAttr, ESearchCase::CaseSensitive))
 			{
 				// The shape is the attribute's own check; here only the name matters.
 				if (Slater::ParseStatePair(Attr.Value, Key, Value))

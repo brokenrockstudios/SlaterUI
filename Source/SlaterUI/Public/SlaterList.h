@@ -33,6 +33,8 @@ namespace Slater
 	/** Installs the process-wide image source (null removes it). Game thread only. */
 	SLATERUI_API void SetImageSource(TSharedPtr<const ISlaterImageSource> Source);
 	SLATERUI_API const FSlateBrush* FindImage(FName Name);
+	/** True when an image source is installed (SlaterImages.h has file-based ones). */
+	SLATERUI_API bool HasImageSource();
 }
 
 /** What `<repeat>` was written with, and what it needs to build more items later. */

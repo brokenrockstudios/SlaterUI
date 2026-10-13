@@ -238,6 +238,128 @@ TEST_CLASS(SlaterStateTests, "BRS.SlaterUI.State")
 		ASSERT_THAT(IsFalse(Loose->Activate()));
 	}
 
+	// hover-set-state and leave-set-state (T-414). Pointer events are synthesized by calling the widget's handlers, in the order
+	// Slate sends them: leave of the row the pointer left, then enter of the one it reached. A parent gets its leave only when
+	// the pointer has left it and all its children, which is Slate's own rule and not exercised here (see DevNotes).
+	const TCHAR* const StMenu =
+		TEXT("<vbox>\n"
+			 "\t<state name=\"sub\" default=\"none\"/>\n"
+			 "\t<surface id=\"Popup\" role=\"UI.Surface.Button\" leave-set-state=\"sub=none\" interactive=\"false\"><vbox>\n"
+			 "\t\t<surface id=\"RowA\" role=\"UI.Surface.Button\" hover-set-state=\"sub=learn\"><text>Learn more</text></surface>\n"
+			 "\t\t<surface id=\"RowB\" role=\"UI.Surface.Button\" hover-set-state=\"sub=none\"><text>Other</text></surface>\n"
+			 "\t</vbox></surface>\n"
+			 "\t<text id=\"Sub\" visible-when=\"sub=learn\">Submenu</text>\n"
+			 "</vbox>");
+
+	TSharedPtr<SSlaterSurface> Surf(const TSharedRef<SSlaterView>& View, const TCHAR* Id) const
+	{
+		return StaticCastSharedPtr<SSlaterSurface>(View->FindById(Id));
+	}
+
+	FString StateOf(const TSharedRef<SSlaterView>& View, const TCHAR* Key) const
+	{
+		FString Value;
+		View->GetState(Key, Value);
+		return Value;
+	}
+
+	TEST_METHOD(HoverSetState_EnterSets_LeaveSets_AndIsInstant)
+	{
+		Fix.Write(TEXT("StMenu.sltr"), StMenu);
+		const TSharedRef<SSlaterView> View = SNew(SSlaterView).LayoutId(TEXT("StMenu"));
+		ASSERT_THAT(IsFalse(View->HasErrors()));
+		const TSharedPtr<SSlaterSurface> RowA = Surf(View, TEXT("RowA"));
+		const TSharedPtr<SSlaterSurface> Popup = Surf(View, TEXT("Popup"));
+		ASSERT_THAT(IsTrue(RowA.IsValid() && Popup.IsValid()));
+		// The attributes alone make a surface take pointer events.
+		ASSERT_THAT(IsTrue(Popup->GetVisibility() == EVisibility::Visible));
+		ASSERT_THAT(IsFalse(Popup->IsInteractive()));
+		ASSERT_THAT(IsTrue(StSame(StateOf(View, TEXT("sub")), TEXT("none"))));
+		ASSERT_THAT(IsFalse(Shown(View, TEXT("Sub"))));
+
+		const FGeometry Geometry;
+		RowA->OnMouseEnter(Geometry, StLeftMouse());
+		ASSERT_THAT(IsTrue(StSame(StateOf(View, TEXT("sub")), TEXT("learn"))));
+		ASSERT_THAT(IsTrue(Shown(View, TEXT("Sub"))));
+		Popup->OnMouseLeave(StLeftMouse());
+		ASSERT_THAT(IsTrue(StSame(StateOf(View, TEXT("sub")), TEXT("none"))));
+		ASSERT_THAT(IsFalse(Shown(View, TEXT("Sub"))));
+	}
+
+	TEST_METHOD(MovingBetweenTwoRows_EndsOnTheSecondRowsValue)
+	{
+		Fix.Write(TEXT("StMenu.sltr"), StMenu);
+		const TSharedRef<SSlaterView> View = SNew(SSlaterView).LayoutId(TEXT("StMenu"));
+		const TSharedPtr<SSlaterSurface> RowA = Surf(View, TEXT("RowA"));
+		const TSharedPtr<SSlaterSurface> RowB = Surf(View, TEXT("RowB"));
+		ASSERT_THAT(IsTrue(RowA.IsValid() && RowB.IsValid()));
+		const FGeometry Geometry;
+		RowA->OnMouseEnter(Geometry, StLeftMouse());
+		RowA->OnMouseLeave(StLeftMouse());
+		RowB->OnMouseEnter(Geometry, StLeftMouse());
+		ASSERT_THAT(IsTrue(StSame(StateOf(View, TEXT("sub")), TEXT("none"))));
+		RowB->OnMouseLeave(StLeftMouse());
+		RowA->OnMouseEnter(Geometry, StLeftMouse());
+		ASSERT_THAT(IsTrue(StSame(StateOf(View, TEXT("sub")), TEXT("learn"))));
+	}
+
+	TEST_METHOD(AParentsLeave_DoesNotRunWhenOnlyAChildIsLeft)
+	{
+		Fix.Write(TEXT("StMenu.sltr"), StMenu);
+		const TSharedRef<SSlaterView> View = SNew(SSlaterView).LayoutId(TEXT("StMenu"));
+		const TSharedPtr<SSlaterSurface> RowA = Surf(View, TEXT("RowA"));
+		const TSharedPtr<SSlaterSurface> Popup = Surf(View, TEXT("Popup"));
+		const FGeometry Geometry;
+		// The pointer enters the popup, then a row, then leaves the row for the popup's own padding: only the row's leave arrives.
+		Popup->OnMouseEnter(Geometry, StLeftMouse());
+		RowA->OnMouseEnter(Geometry, StLeftMouse());
+		RowA->OnMouseLeave(StLeftMouse());
+		ASSERT_THAT(IsTrue(StSame(StateOf(View, TEXT("sub")), TEXT("learn"))));
+		// Only leaving the popup itself runs its leave-set-state.
+		Popup->OnMouseLeave(StLeftMouse());
+		ASSERT_THAT(IsTrue(StSame(StateOf(View, TEXT("sub")), TEXT("none"))));
+	}
+
+	TEST_METHOD(ADisabledSurface_DoesNotSetOnHover)
+	{
+		Fix.Write(TEXT("StOffHover.sltr"), TEXT("<vbox><state name=\"t\" default=\"a\"/><surface id=\"S\" role=\"UI.Surface.Button\" hover-set-state=\"t=b\" enabled=\"false\"/></vbox>"));
+		const TSharedRef<SSlaterView> View = SNew(SSlaterView).LayoutId(TEXT("StOffHover"));
+		Surf(View, TEXT("S"))->OnMouseEnter(FGeometry(), StLeftMouse());
+		ASSERT_THAT(IsTrue(StSame(StateOf(View, TEXT("t")), TEXT("a"))));
+	}
+
+	TEST_METHOD(HoverSetState_InATemplate_IsCheckedAgainstTheUsingLayoutsStates)
+	{
+		const FSlaterBuildResult Fine = StBuild(
+			TEXT("<vbox>\n<template name=\"row\" params=\"to\"><surface role=\"UI.Surface.Button\" hover-set-state=\"sub=$to\"/></template>\n<state name=\"sub\" default=\"none\"/>\n<row to=\"learn\"/>\n</vbox>"), Stack);
+		ASSERT_THAT(IsTrue(Fine.Succeeded()));
+		const FSlaterBuildResult Undeclared = StBuild(
+			TEXT("<vbox>\n<template name=\"row\" params=\"to\"><surface role=\"UI.Surface.Button\" leave-set-state=\"menu=$to\"/></template>\n<state name=\"sub\" default=\"none\"/>\n<row to=\"learn\"/>\n</vbox>"), Stack);
+		ASSERT_THAT(IsFalse(Undeclared.Succeeded()));
+		ASSERT_THAT(IsTrue(Undeclared.Errors[0].Message.Contains(TEXT("'menu' is not a declared state; declared: sub"))));
+	}
+
+	TEST_METHOD(UndeclaredOrMalformedHoverAndLeave_AreRefusedWithTheDeclaredNames)
+	{
+		const FSlaterBuildResult Hover = StBuild(TEXT("<vbox><state name=\"sub\" default=\"none\"/><surface role=\"UI.Surface.Button\" hover-set-state=\"sup=a\"/></vbox>"), Stack);
+		ASSERT_THAT(IsFalse(Hover.Succeeded()));
+		ASSERT_THAT(IsTrue(Hover.Errors[0].Message.Contains(TEXT("'sup' is not a declared state; declared: sub"))));
+		const FSlaterBuildResult Leave = StBuild(TEXT("<vbox><state name=\"sub\" default=\"none\"/><surface role=\"UI.Surface.Button\" leave-set-state=\"sup=a\"/></vbox>"), Stack);
+		ASSERT_THAT(IsFalse(Leave.Succeeded()));
+		ASSERT_THAT(IsTrue(Leave.Errors[0].Message.Contains(TEXT("'sup' is not a declared state; declared: sub"))));
+		const FSlaterBuildResult Shape = StBuild(TEXT("<vbox><state name=\"sub\" default=\"none\"/><surface role=\"UI.Surface.Button\" hover-set-state=\"sub\"/></vbox>"), Stack);
+		ASSERT_THAT(IsFalse(Shape.Succeeded()));
+		ASSERT_THAT(IsTrue(Shape.Errors[0].Message.Contains(TEXT("is not a state test for hover-set-state"))));
+	}
+
+	TEST_METHOD(AHoverSetStateOutsideAView_WarnsAndChangesNothing)
+	{
+		TestRunner->AddExpectedMessagePlain(TEXT("needs the surface to be inside an SSlaterView"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, 1);
+		const TSharedRef<SSlaterSurface> Loose = SNew(SSlaterSurface);
+		Loose->SetHoverStateChange(TEXT("t"), TEXT("b"));
+		Loose->OnMouseEnter(FGeometry(), StLeftMouse());
+	}
+
 	TEST_METHOD(BuildErrors_NameTheStateAndTheFix)
 	{
 		// An undeclared name in each of the three places that can use one.

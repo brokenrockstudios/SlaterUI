@@ -2,6 +2,7 @@
 
 #include "SlaterPreviewTab.h"
 
+#include "SlaterImages.h"
 #include "SlaterView.h"
 #include "Styling/CoreStyle.h"
 #include "Widgets/Input/SButton.h"
@@ -16,6 +17,11 @@
 void SSlaterPreview::Construct(const FArguments& InArgs)
 {
 	OnRescan = InArgs._OnRescan;
+	// Sample layouts (Sidebar) draw the plugin's SVG icons; a game that installed its own source keeps it.
+	if (!Slater::HasImageSource())
+	{
+		Slater::SetImageSource(Slater::MakePluginIconSource());
+	}
 	RescanOptions();
 	UpdateStyleErrors();
 	ContentChangedHandle = Slater::OnContentChanged().AddSP(this, &SSlaterPreview::UpdateStyleErrors);

@@ -102,6 +102,11 @@ namespace Slater
 		GImageSource = MoveTemp(Source);
 	}
 
+	bool HasImageSource()
+	{
+		return GImageSource.IsValid();
+	}
+
 	const FSlateBrush* FindImage(FName Name)
 	{
 		return (GImageSource.IsValid() && !Name.IsNone()) ? GImageSource->FindImage(Name) : nullptr;

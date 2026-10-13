@@ -2,6 +2,14 @@
 
 Version format `YYMM.DDRR` (year, month, day, revision of that day). Newest first. Keep entries to one line where possible.
 
+## 2610.1211
+
+- Collapsible sidebar v1 sample (T-403): `Content/UI/Layouts/Sidebar.sltr` (template `nav-item`, state `expanded`, hamburger `ui.toggle:expanded`, labels, title, logo and a spacer on `visible-when`, pinned logout), SVG icons in `Content/UI/Icons`, `Slater::MakeFileImageSource` / `MakePluginIconSource` (`SlaterImages.h`, `*.svg` through `FSlateVectorImageBrush`) and `Slater::HasImageSource`; the preview tab installs the plugin icons when the game set no image source. Tests `BRS.SlaterUI.Sidebar.*`, `BRS.SlaterUI.Render.Sidebar` (needs `-WithRHI`).
+
+## 2610.1210
+
+- `hover-set-state` and `leave-set-state` on `surface` (T-414): the pointer entering or leaving sets one view state (`key=value`, checked like `set-state`, instant, works in templates). Tests: `BRS.SlaterUI.State`.
+
 ## 2610.1209
 
 - Designer path (T-352). `USlaterLayoutWidget` (UMG palette, "Slater"): a layout ID dropdown, style, and `ViewModelName` to take `{Path}` data from the enclosing widget's `UMVVMView`; `SetViewModel` from code. `USlaterLayoutUserWidget` is the same as a `UUserWidget`. New module `SlaterUIGameFeatures`: game feature action **Add Slater Layout** (layout ID, style, HUD slot tag per entry; hands each to the game's `ISlaterSlotHost` (`Slater::SetSlotHost`) in every game world while the feature is active, and adds the feature plugin's `Content/UI/Layouts` and `Styles` as roots). The UIExtension slot host is the separate plugin SlaterUIExtension; see `Docs/SlaterUI/Extending.md`. Template `Templates/UIPack` (content-only game feature plugin with a sample layout and style). Adds plugin dependencies `GameFeatures`, `ModelViewViewModel`. Tests: `BRS.SlaterUI.LayoutWidget`, `BRS.SlaterUI.GameFeatureAction`.

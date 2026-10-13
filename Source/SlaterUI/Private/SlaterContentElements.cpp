@@ -75,6 +75,17 @@ namespace
 			Widget->SetStateChange(FName(*ClickStateKey), ClickStateValue);
 			bHasAction = true;
 		}
+		static const FName HoverSetStateName(TEXT("hover-set-state"));
+		static const FName LeaveSetStateName(TEXT("leave-set-state"));
+		FString PointerKey, PointerValue;
+		if (Context.Has(HoverSetStateName) && Slater::ParseStatePair(Context.GetText(HoverSetStateName), PointerKey, PointerValue))
+		{
+			Widget->SetHoverStateChange(FName(*PointerKey), PointerValue);
+		}
+		if (Context.Has(LeaveSetStateName) && Slater::ParseStatePair(Context.GetText(LeaveSetStateName), PointerKey, PointerValue))
+		{
+			Widget->SetLeaveStateChange(FName(*PointerKey), PointerValue);
+		}
 		// A surface with a command follows the pointer unless `interactive="false"`; `disabled` stays explicit and never reacts.
 		const FSlaterValue* StateValue = Context.Values.Find(StateName);
 		const bool bDisabled = StateValue && StateValue->Word == TEXT("disabled");
@@ -243,6 +254,18 @@ void Slater::RegisterContentElements(FSlaterElementRegistry& Registry)
 		return Slater::CheckStatePair(Text, TEXT("set-state"));
 	};
 	SurfaceDesc.Attributes.Add(MoveTemp(SetState));
+	FSlaterAttrDesc HoverSetState = Attr(TEXT("hover-set-state"), ESlaterAttrType::Text);
+	HoverSetState.CheckText = [](const FString& Text)
+	{
+		return Slater::CheckStatePair(Text, TEXT("hover-set-state"));
+	};
+	SurfaceDesc.Attributes.Add(MoveTemp(HoverSetState));
+	FSlaterAttrDesc LeaveSetState = Attr(TEXT("leave-set-state"), ESlaterAttrType::Text);
+	LeaveSetState.CheckText = [](const FString& Text)
+	{
+		return Slater::CheckStatePair(Text, TEXT("leave-set-state"));
+	};
+	SurfaceDesc.Attributes.Add(MoveTemp(LeaveSetState));
 	SurfaceDesc.Children = ESlaterChildRule::One;
 	SurfaceDesc.SlotAttrs = ESlaterSlotAttrs::Margin | ESlaterSlotAttrs::HAlign | ESlaterSlotAttrs::VAlign;
 	SurfaceDesc.ResolveDefaults = &ResolveSurfaceState;

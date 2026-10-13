@@ -87,6 +87,10 @@ void SSlaterSurface::OnMouseEnter(const FGeometry& MyGeometry, const FPointerEve
 		bHovered = true;
 		Refresh();
 	}
+	if (!HoverStateKey.IsNone() && IsEnabled())
+	{
+		ApplyPointerState(HoverStateKey, HoverStateValue, TEXT("hover-set-state"));
+	}
 }
 
 void SSlaterSurface::OnMouseLeave(const FPointerEvent& MouseEvent)
@@ -98,6 +102,49 @@ void SSlaterSurface::OnMouseLeave(const FPointerEvent& MouseEvent)
 		bPressed = false;
 		Refresh();
 	}
+	if (!LeaveStateKey.IsNone() && IsEnabled())
+	{
+		ApplyPointerState(LeaveStateKey, LeaveStateValue, TEXT("leave-set-state"));
+	}
+}
+
+TSharedPtr<SSlaterView> SSlaterSurface::FindView() const
+{
+	for (TSharedPtr<SWidget> Parent = GetParentWidget(); Parent.IsValid(); Parent = Parent->GetParentWidget())
+	{
+		if (Parent->GetType() == FName(TEXT("SSlaterView")))
+		{
+			return StaticCastSharedPtr<SSlaterView>(Parent);
+		}
+	}
+	return nullptr;
+}
+
+void SSlaterSurface::ApplyPointerState(FName Key, const FString& Value, const TCHAR* Attribute) const
+{
+	if (const TSharedPtr<SSlaterView> View = FindView())
+	{
+		View->SetState(Key, Value);
+	}
+	else
+	{
+		UE_LOG(LogSlaterSurface, Warning, TEXT("SlaterUI: %s=\"%s=%s\" needs the surface to be inside an SSlaterView, which holds the state"), Attribute, *Key.ToString(), *Value);
+	}
+}
+
+void SSlaterSurface::SetHoverStateChange(FName InKey, const FString& InValue)
+{
+	HoverStateKey = InKey;
+	HoverStateValue = InValue;
+	// A border is not hit-testable on its own; without it the pointer would never enter.
+	SetVisibility(EVisibility::Visible);
+}
+
+void SSlaterSurface::SetLeaveStateChange(FName InKey, const FString& InValue)
+{
+	LeaveStateKey = InKey;
+	LeaveStateValue = InValue;
+	SetVisibility(EVisibility::Visible);
 }
 
 void SSlaterSurface::SetCommand(FName InCommand, const FString& InArgument)
@@ -127,15 +174,7 @@ bool SSlaterSurface::Activate()
 	{
 		return false;
 	}
-	TSharedPtr<SSlaterView> View;
-	for (TSharedPtr<SWidget> Parent = GetParentWidget(); Parent.IsValid(); Parent = Parent->GetParentWidget())
-	{
-		if (Parent->GetType() == FName(TEXT("SSlaterView")))
-		{
-			View = StaticCastSharedPtr<SSlaterView>(Parent);
-			break;
-		}
-	}
+	const TSharedPtr<SSlaterView> View = FindView();
 	bool bOk = true;
 	if (!StateKey.IsNone())
 	{

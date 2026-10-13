@@ -7,15 +7,19 @@
 #include "Framework/Application/SlateApplication.h"
 #include "HAL/FileManager.h"
 #include "HAL/PlatformTime.h"
+#include "HAL/PlatformProcess.h"
 #include "ImageUtils.h"
 #include "Misc/AutomationTest.h"
 #include "Misc/FileHelper.h"
 #include "Misc/Paths.h"
 #include "RHI.h"
 #include "RenderingThread.h"
+#include "SlaterImages.h"
+#include "SlaterSurface.h"
 #include "SlaterView.h"
 #include "Slate/WidgetRenderer.h"
 #include "Widgets/SWidget.h"
+#include "Widgets/SWindow.h"
 
 namespace
 {
@@ -28,6 +32,24 @@ namespace
 	bool RdClose(const FColor& A, const FColor& B, int32 Tolerance)
 	{
 		return FMath::Abs(int32(A.R) - int32(B.R)) <= Tolerance && FMath::Abs(int32(A.G) - int32(B.G)) <= Tolerance && FMath::Abs(int32(A.B) - int32(B.B)) <= Tolerance;
+	}
+
+	/** Vector icons are rasterized by the application's own renderer when it draws a window (FWidgetRenderer does not),
+	 *  so show the view in a real window for a few ticks after a draw has asked for them; the cache is keyed by file, size and scale. */
+	void RdShowInWindow(const TSharedRef<SWidget>& View)
+	{
+		View->SlatePrepass(1.f);
+		const TSharedRef<SWindow> Window = SNew(SWindow).ClientSize(View->GetDesiredSize()).SupportsMaximize(false).SupportsMinimize(false)[View];
+		FSlateApplication::Get().AddWindow(Window);
+		for (int32 Tick = 0; Tick < 12; ++Tick)
+		{
+			FSlateApplication::Get().Tick();
+			FPlatformProcess::Sleep(0.02f);
+			FlushRenderingCommands();
+		}
+		Window->RequestDestroyWindow();
+		FSlateApplication::Get().Tick();
+		View->SlatePrepass(1.f);
 	}
 
 	double RdMedianMs(TArray<double>& Seconds)
@@ -175,5 +197,78 @@ TEST_CLASS(SlaterLayoutCostTests, "BRS.SlaterUI.Render.Cost")
 		FFileHelper::SaveStringToFile(Report, *(RenderDir() / TEXT("Metrics.txt")));
 	}
 };
+
+/**
+ * Renders the sidebar sample expanded and collapsed to Saved/SlaterUI/Render/Sidebar_<state>.png for review (T-403). The SVG
+ * icons only draw with a real RHI, so under -nullrhi this skips. The pixel check: the collapsed image is narrower.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlaterRenderSidebarTest, "BRS.SlaterUI.Render.Sidebar", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSlaterRenderSidebarTest::RunTest(const FString&)
+{
+	if (GUsingNullRHI)
+	{
+		AddInfo(TEXT("Skipped: requires a real RHI (run with -WithRHI)."));
+		return true;
+	}
+	if (!FSlateApplication::IsInitialized() || !FSlateApplication::Get().GetRenderer())
+	{
+		AddInfo(TEXT("Skipped: no Slate renderer in this run."));
+		return true;
+	}
+
+	IFileManager::Get().MakeDirectory(*RenderDir(), true);
+	Slater::SetImageSource(Slater::MakePluginIconSource());
+	FWidgetRenderer Renderer(false);
+	const TSharedRef<SSlaterView> View = SNew(SSlaterView).LayoutId(TEXT("Sidebar"));
+	if (TestFalse(TEXT("Sidebar builds"), View->HasErrors()))
+	{
+		TMap<FString, int32> Widths;
+		for (const TCHAR* State : {TEXT("Expanded"), TEXT("Collapsed")})
+		{
+			if (FCString::Strcmp(State, TEXT("Collapsed")) == 0)
+			{
+				const TSharedPtr<SSlaterSurface> Hamburger = StaticCastSharedPtr<SSlaterSurface>(View->FindById(TEXT("Hamburger")));
+				TestTrue(TEXT("Hamburger clicked"), Hamburger.IsValid() && Hamburger->Activate());
+			}
+			UTextureRenderTarget2D* Target = nullptr;
+			// Pass 0 queues the icons for rasterizing, the window ticks do it, pass 1 draws the result.
+			for (int32 Pass = 0; Pass < 2; ++Pass)
+			{
+				View->SlatePrepass(1.f);
+				const FVector2D Size = FVector2D(FMath::CeilToInt(View->GetDesiredSize().X), FMath::CeilToInt(View->GetDesiredSize().Y));
+				Target = Renderer.DrawWidget(View, Size);
+				FlushRenderingCommands();
+				if (Pass == 0)
+				{
+					RdShowInWindow(View);
+				}
+			}
+			TArray<FColor> Pixels;
+			FTextureRenderTargetResource* Resource = Target ? Target->GameThread_GetRenderTargetResource() : nullptr;
+			if (!TestTrue(TEXT("Pixels read back"), Resource && Resource->ReadPixels(Pixels)))
+			{
+				continue;
+			}
+			for (FColor& Pixel : Pixels)
+			{
+				const FColor Encoded = FLinearColor(Pixel.R / 255.f, Pixel.G / 255.f, Pixel.B / 255.f).ToFColorSRGB();
+				Pixel = FColor(Encoded.R, Encoded.G, Encoded.B, 255);
+			}
+			TArray64<uint8> Png;
+			FImageUtils::PNGCompressImageArray(Target->SizeX, Target->SizeY, TArrayView64<const FColor>(Pixels.GetData(), Pixels.Num()), Png);
+			const FString File = RenderDir() / FString::Printf(TEXT("Sidebar_%s.png"), State);
+			TestTrue(*FString::Printf(TEXT("%s written"), *File), FFileHelper::SaveArrayToFile(Png, *File));
+			AddInfo(FString::Printf(TEXT("%s (%d x %d)"), *File, Target->SizeX, Target->SizeY));
+			Widths.Add(State, Target->SizeX);
+		}
+		if (Widths.Contains(TEXT("Expanded")) && Widths.Contains(TEXT("Collapsed")))
+		{
+			TestTrue(TEXT("Collapsed image is narrower"), Widths[TEXT("Collapsed")] < Widths[TEXT("Expanded")]);
+		}
+	}
+	Slater::SetImageSource(nullptr);
+	return true;
+}
 
 #endif

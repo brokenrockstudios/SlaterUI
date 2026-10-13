@@ -8,6 +8,8 @@
 #include "Widgets/DeclarativeSyntaxSupport.h"
 #include "Widgets/Layout/SBorder.h"
 
+class SSlaterView;
+
 /**
  * A procedural rounded box (fill, outline, corner radius) around one child. The brush is owned here, so the
  * surface can change at runtime without a texture or a material.
@@ -38,6 +40,18 @@ public:
 	const FString& GetStateValue() const { return StateValue; }
 	/** True when a click does anything: it has a command or a state change. */
 	bool HasAction() const { return !Command.IsNone() || !StateKey.IsNone(); }
+
+	/**
+	 * The view state the pointer sets on entering (`hover-set-state="sub=learn"`) and on leaving (`leave-set-state="sub=none"`)
+	 * the surface, or none. Instant, and independent of `interactive`; either one makes the surface take pointer events.
+	 * Slate sends a parent its leave only when the pointer has left the parent and all of its children.
+	 */
+	void SetHoverStateChange(FName InKey, const FString& InValue);
+	void SetLeaveStateChange(FName InKey, const FString& InValue);
+	FName GetHoverStateKey() const { return HoverStateKey; }
+	const FString& GetHoverStateValue() const { return HoverStateValue; }
+	FName GetLeaveStateKey() const { return LeaveStateKey; }
+	const FString& GetLeaveStateValue() const { return LeaveStateValue; }
 
 	/**
 	 * Does what a click does: sets the state, then runs the command in the command table of the `SSlaterView` this surface
@@ -77,6 +91,10 @@ public:
 private:
 	/** Draws the surface the pointer state selects. */
 	void Refresh();
+	/** The `SSlaterView` this surface is in, or null. */
+	TSharedPtr<SSlaterView> FindView() const;
+	/** Sets a pointer-driven state in the view; logs and does nothing outside one. */
+	void ApplyPointerState(FName Key, const FString& Value, const TCHAR* Attribute) const;
 
 	FSlaterSurface Surface;
 	FSlaterSurface RestingSurface;
@@ -90,6 +108,10 @@ private:
 	FString CommandArgument;
 	FName StateKey;
 	FString StateValue;
+	FName HoverStateKey;
+	FString HoverStateValue;
+	FName LeaveStateKey;
+	FString LeaveStateValue;
 	/** Shared with every surface of the same values (see `BrushFor`); the border draws this one. */
 	TSharedPtr<const FSlateBrush> Brush;
 };

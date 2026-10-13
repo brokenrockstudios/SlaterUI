@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<vbox>
+  <state name="sub" default="none"/>
+  <surface role="UI.Surface.Button" leave-set-state="sub=none"><vbox>
+    <surface role="UI.Surface.Button" hover-set-state="sub=learn"><text>Learn more</text></surface>
+    <surface role="UI.Surface.Button" hover-set-state="sub=none"><text>Other</text></surface>
+  </vbox></surface>
+  <text visible-when="sub=learn">Submenu is open</text>
+</vbox>
