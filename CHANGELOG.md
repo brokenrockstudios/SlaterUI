@@ -2,6 +2,10 @@
 
 Version format `YYMM.DDRR` (year, month, day, revision of that day). Newest first. Keep entries to one line where possible.
 
+## 2610.1212
+
+- Popup menu v1 sample (T-415): `Content/UI/Layouts/ContextMenu.sltr` (footer chevron `ui.toggle:menu`, transparent scrim, popup frame, templates `menu-header` `menu-sep` `menu-item` `menu-plain` `menu-parent` `menu-link`, a Learn more submenu opened by `hover-set-state` and closed by the frame's `leave-set-state`), Base tokens `UI.Surface.Menu`, `MenuItem` (+`.Hover`), `Divider`, `Scrim` and colors `UI.Color.Menu` `Menu.Hover` `MenuLine` `MenuText` `MenuMuted` `Clear`, eight more SVG icons. Tests `BRS.SlaterUI.ContextMenu.*`, `BRS.SlaterUI.Render.ContextMenu` (needs `-WithRHI`).
+
 ## 2610.1211
 
 - Collapsible sidebar v1 sample (T-403): `Content/UI/Layouts/Sidebar.sltr` (template `nav-item`, state `expanded`, hamburger `ui.toggle:expanded`, labels, title, logo and a spacer on `visible-when`, pinned logout), SVG icons in `Content/UI/Icons`, `Slater::MakeFileImageSource` / `MakePluginIconSource` (`SlaterImages.h`, `*.svg` through `FSlateVectorImageBrush`) and `Slater::HasImageSource`; the preview tab installs the plugin icons when the game set no image source. Tests `BRS.SlaterUI.Sidebar.*`, `BRS.SlaterUI.Render.Sidebar` (needs `-WithRHI`).

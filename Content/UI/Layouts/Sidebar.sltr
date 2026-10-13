@@ -22,7 +22,7 @@
 				</surface>
 				<text id="Title" visible-when="expanded=true" font="UI.Font.Heading" valign="center" margin="UI.Space.S">Skybrook</text>
 				<spacer id="HeaderGap" visible-when="expanded=true" width="24"/>
-				<image id="Logo" visible-when="expanded=true" src="Rock" size="96" valign="center" margin="UI.Space.S"/>
+				<image id="Logo" visible-when="expanded=true" src="Logo" size="28" valign="center" margin="UI.Space.S"/>
 			</hbox>
 			<nav-item id="NavHome" icon="Home" label="Home"/>
 			<nav-item id="NavProfile" icon="User" label="Profile"/>

@@ -271,4 +271,80 @@ bool FSlaterRenderSidebarTest::RunTest(const FString&)
 	return true;
 }
 
+/**
+ * Renders the popup menu sample closed, open and with the submenu open to Saved/SlaterUI/Render/ContextMenu_<state>.png for review
+ * (T-415). Icons need a real RHI, so under -nullrhi this skips. The pixel check: the open menu changes the picture.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlaterRenderContextMenuTest, "BRS.SlaterUI.Render.ContextMenu", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSlaterRenderContextMenuTest::RunTest(const FString&)
+{
+	if (GUsingNullRHI)
+	{
+		AddInfo(TEXT("Skipped: requires a real RHI (run with -WithRHI)."));
+		return true;
+	}
+	if (!FSlateApplication::IsInitialized() || !FSlateApplication::Get().GetRenderer())
+	{
+		AddInfo(TEXT("Skipped: no Slate renderer in this run."));
+		return true;
+	}
+
+	IFileManager::Get().MakeDirectory(*RenderDir(), true);
+	Slater::SetImageSource(Slater::MakePluginIconSource());
+	FWidgetRenderer Renderer(false);
+	const TSharedRef<SSlaterView> View = SNew(SSlaterView).LayoutId(TEXT("ContextMenu"));
+	if (TestFalse(TEXT("ContextMenu builds"), View->HasErrors()))
+	{
+		TArray<TArray<FColor>> Pictures;
+		const TArray<TTuple<const TCHAR*, const TCHAR*, const TCHAR*>> Steps = {
+			MakeTuple(TEXT("Closed"), TEXT("false"), TEXT("none")),
+			MakeTuple(TEXT("Open"), TEXT("true"), TEXT("none")),
+			MakeTuple(TEXT("Submenu"), TEXT("true"), TEXT("learn")),
+		};
+		for (const TTuple<const TCHAR*, const TCHAR*, const TCHAR*>& Step : Steps)
+		{
+			View->SetState(TEXT("menu"), Step.Get<1>());
+			View->SetState(TEXT("sub"), Step.Get<2>());
+			UTextureRenderTarget2D* Target = nullptr;
+			// Pass 0 queues the icons for rasterizing, the window ticks do it, pass 1 draws the result.
+			for (int32 Pass = 0; Pass < 2; ++Pass)
+			{
+				View->SlatePrepass(1.f);
+				const FVector2D Size = FVector2D(FMath::CeilToInt(View->GetDesiredSize().X), FMath::CeilToInt(View->GetDesiredSize().Y));
+				Target = Renderer.DrawWidget(View, Size);
+				FlushRenderingCommands();
+				if (Pass == 0)
+				{
+					RdShowInWindow(View);
+				}
+			}
+			TArray<FColor> Pixels;
+			FTextureRenderTargetResource* Resource = Target ? Target->GameThread_GetRenderTargetResource() : nullptr;
+			if (!TestTrue(TEXT("Pixels read back"), Resource && Resource->ReadPixels(Pixels)))
+			{
+				continue;
+			}
+			for (FColor& Pixel : Pixels)
+			{
+				const FColor Encoded = FLinearColor(Pixel.R / 255.f, Pixel.G / 255.f, Pixel.B / 255.f).ToFColorSRGB();
+				Pixel = FColor(Encoded.R, Encoded.G, Encoded.B, 255);
+			}
+			TArray64<uint8> Png;
+			FImageUtils::PNGCompressImageArray(Target->SizeX, Target->SizeY, TArrayView64<const FColor>(Pixels.GetData(), Pixels.Num()), Png);
+			const FString File = RenderDir() / FString::Printf(TEXT("ContextMenu_%s.png"), Step.Get<0>());
+			TestTrue(*FString::Printf(TEXT("%s written"), *File), FFileHelper::SaveArrayToFile(Png, *File));
+			AddInfo(FString::Printf(TEXT("%s (%d x %d)"), *File, Target->SizeX, Target->SizeY));
+			Pictures.Add(MoveTemp(Pixels));
+		}
+		if (Pictures.Num() == 3)
+		{
+			TestTrue(TEXT("Opening the menu changes the picture"), Pictures[0] != Pictures[1]);
+			TestTrue(TEXT("Opening the submenu changes the picture"), Pictures[1] != Pictures[2]);
+		}
+	}
+	Slater::SetImageSource(nullptr);
+	return true;
+}
+
 #endif

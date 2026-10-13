@@ -10,6 +10,13 @@
 	<color name="UI.Color.Accent.Hover" value="#4F86F0"/>
 	<color name="UI.Color.Accent.Pressed" value="#1F58C7"/>
 	<color name="UI.Color.Danger" value="#D64545"/>
+	<!-- The popup menu is dark in every style: its icons are white strokes. -->
+	<color name="UI.Color.Menu" value="#262A32"/>
+	<color name="UI.Color.Menu.Hover" value="#343944"/>
+	<color name="UI.Color.MenuLine" value="#3A3F4A"/>
+	<color name="UI.Color.MenuText" value="#E6E8EC"/>
+	<color name="UI.Color.MenuMuted" value="#9AA1AD"/>
+	<color name="UI.Color.Clear" value="#00000000"/>
 
 	<metric name="UI.Space.S" value="4"/>
 	<metric name="UI.Space.M" value="8"/>
@@ -26,4 +33,9 @@
 	<surface name="UI.Surface.Button" fill="UI.Color.Accent" radius="UI.Radius.M"/>
 	<surface name="UI.Surface.Button.Hover" fill="UI.Color.Accent.Hover" radius="UI.Radius.M"/>
 	<surface name="UI.Surface.Button.Pressed" fill="UI.Color.Accent.Pressed" radius="UI.Radius.M"/>
+	<surface name="UI.Surface.Menu" fill="UI.Color.Menu" border="UI.Color.MenuLine" border-width="UI.Border.Thin" radius="UI.Radius.M"/>
+	<surface name="UI.Surface.MenuItem" fill="UI.Color.Clear" radius="UI.Radius.M"/>
+	<surface name="UI.Surface.MenuItem.Hover" fill="UI.Color.Menu.Hover" radius="UI.Radius.M"/>
+	<surface name="UI.Surface.Divider" fill="UI.Color.MenuLine"/>
+	<surface name="UI.Surface.Scrim" fill="UI.Color.Clear"/>
 </style>

@@ -1,0 +1,119 @@
+<?xml version="1.0"?>
+<!-- A popup menu from markup alone (T-415, v1: instant). A footer row with a chevron opens `menu`; the chevron toggles it, a click on the
+     transparent scrim (any click outside the popup) or on an item closes it. An item sets menu=false and fires its command in one click.
+     "Learn more" opens a submenu by hovering: every row sets `sub` when the pointer enters it (hover-set-state), and the popup frame
+     sets sub=none when the pointer leaves the whole popup (leave-set-state), so the gap between menu and submenu keeps it open.
+     The popup is a layer inside the view's rectangle (it cannot leave the view or flip at an edge) and its submenu is aligned to the
+     bottom of the menu, not to its row. The icons are white strokes (Content/UI/Icons), so the menu is dark in every style. -->
+<overlay>
+	<state name="menu" default="false"/>
+	<state name="sub" default="none"/>
+
+	<template name="menu-header" params="label">
+		<text font="UI.Font.Caption" color="UI.Color.MenuMuted" margin="UI.Space.M">$label</text>
+	</template>
+	<template name="menu-sep">
+		<surface role="UI.Surface.Divider" height="1" margin="UI.Space.S"/>
+	</template>
+	<!-- Icon, label and a right-aligned shortcut. -->
+	<template name="menu-item" params="icon label shortcut cmd">
+		<surface role="UI.Surface.MenuItem" inset="UI.Space.M" set-state="menu=false" on-click="$cmd" hover-set-state="sub=none">
+			<hbox>
+				<image src="$icon" size="16" valign="center"/>
+				<text color="UI.Color.MenuText" fill="1" valign="center" margin="UI.Space.M">$label</text>
+				<text font="UI.Font.Caption" color="UI.Color.MenuMuted" valign="center">$shortcut</text>
+			</hbox>
+		</surface>
+	</template>
+	<!-- Icon and label only. -->
+	<template name="menu-plain" params="icon label cmd">
+		<surface role="UI.Surface.MenuItem" inset="UI.Space.M" set-state="menu=false" on-click="$cmd" hover-set-state="sub=none">
+			<hbox>
+				<image src="$icon" size="16" valign="center"/>
+				<text color="UI.Color.MenuText" fill="1" valign="center" margin="UI.Space.M">$label</text>
+			</hbox>
+		</surface>
+	</template>
+	<!-- A row that opens the submenu while the pointer is on it. No command: a click on it does nothing and keeps the menu open. -->
+	<template name="menu-parent" params="icon label">
+		<surface role="UI.Surface.MenuItem" inset="UI.Space.M" interactive="true" hover-set-state="sub=learn">
+			<hbox>
+				<image src="$icon" size="16" valign="center"/>
+				<text color="UI.Color.MenuText" fill="1" valign="center" margin="UI.Space.M">$label</text>
+				<image src="ChevronRight" size="16" valign="center"/>
+			</hbox>
+		</surface>
+	</template>
+	<!-- A submenu row with a trailing "opens elsewhere" mark; it keeps the submenu open while the pointer is on it. -->
+	<template name="menu-link" params="label cmd">
+		<surface role="UI.Surface.MenuItem" inset="UI.Space.M" set-state="menu=false" on-click="$cmd" hover-set-state="sub=learn">
+			<hbox>
+				<text color="UI.Color.MenuText" fill="1" valign="center" margin="UI.Space.S">$label</text>
+				<image src="External" size="14" valign="center"/>
+			</hbox>
+		</surface>
+	</template>
+
+	<!-- Layer 0: the page. PageAction sits where the popup opens, so a test can click it through the closed popup layer. -->
+	<surface id="Page" role="UI.Surface.Panel" inset="UI.Space.L" width="560" height="460">
+		<vbox>
+			<text font="UI.Font.Heading">Account</text>
+			<text font="UI.Font.Caption" color="UI.Color.TextMuted" margin="UI.Space.S">The page under the menu. Open it with the chevron at the bottom.</text>
+			<spacer fill="1"/>
+			<surface id="PageAction" role="UI.Surface.Button" inset="UI.Space.M" margin="UI.Space.S" halign="left" on-click="Page.Action">
+				<text color="UI.Color.Panel">A button under the popup</text>
+			</surface>
+			<surface id="Footer" role="UI.Surface.Panel" inset="UI.Space.M" height="56">
+				<hbox>
+					<surface role="UI.Surface.Button" inset="UI.Space.M" interactive="false" valign="center">
+						<image src="User" size="20"/>
+					</surface>
+					<vbox valign="center" margin="UI.Space.M">
+						<text>You</text>
+						<text font="UI.Font.Caption" color="UI.Color.TextMuted">Pro plan</text>
+					</vbox>
+					<spacer fill="1"/>
+					<surface id="Chevron" role="UI.Surface.Button" inset="UI.Space.M" valign="center" on-click="ui.toggle:menu">
+						<image src="ChevronUp" size="16"/>
+					</surface>
+				</hbox>
+			</surface>
+		</vbox>
+	</surface>
+
+	<!-- Layer 1: the scrim. Transparent, over the whole view while the menu is open, so a click anywhere outside the popup closes it. -->
+	<surface id="Scrim" role="UI.Surface.Scrim" visible-when="menu=true" set-state="menu=false" interactive="false"/>
+
+	<!-- Layer 2: the popup frame, at the bottom left above the footer (the spacer is the footer's height and a gap). The frame is the
+	     pointer's "inside": its leave closes the submenu, and a click on its gap closes the menu like the scrim. -->
+	<surface id="Popup" role="UI.Surface.Scrim" visible-when="menu=true" set-state="menu=false" leave-set-state="sub=none" interactive="false" halign="left" valign="bottom" margin="UI.Space.M">
+		<vbox>
+			<hbox>
+				<!-- A click on the menu's own header, dividers or padding is swallowed (set-state to the value it has), so it stays open. -->
+				<surface id="Menu" role="UI.Surface.Menu" inset="UI.Space.S" width="250" valign="bottom" set-state="menu=true" interactive="false">
+					<vbox>
+						<menu-header label="you@example.com"/>
+						<menu-item id="ItemSettings" icon="Settings" label="Settings" shortcut="Ctrl+," cmd="Account.Settings"/>
+						<menu-item id="ItemLanguage" icon="Globe" label="Language" shortcut="Ctrl+L" cmd="Account.Language"/>
+						<menu-item id="ItemHelp" icon="Help" label="Get help" shortcut="F1" cmd="Account.Help"/>
+						<menu-sep/>
+						<menu-plain id="ItemUpgrade" icon="Upgrade" label="Upgrade plan" cmd="Account.Upgrade"/>
+						<menu-plain id="ItemGift" icon="Gift" label="Gift" cmd="Account.Gift"/>
+						<menu-parent id="ItemLearn" icon="Book" label="Learn more"/>
+						<menu-sep/>
+						<menu-plain id="ItemLogout" icon="Logout" label="Log out" cmd="Account.Logout"/>
+					</vbox>
+				</surface>
+				<spacer visible-when="sub=learn" width="4"/>
+				<surface id="Submenu" role="UI.Surface.Menu" visible-when="sub=learn" inset="UI.Space.S" width="190" valign="bottom" set-state="menu=true" interactive="false">
+					<vbox>
+						<menu-link id="LinkTerms" label="Terms and policies" cmd="Account.Terms"/>
+						<menu-link id="LinkPrivacy" label="Privacy policy" cmd="Account.Privacy"/>
+						<menu-link id="LinkUsage" label="Usage policy" cmd="Account.Usage"/>
+					</vbox>
+				</surface>
+			</hbox>
+			<spacer height="64"/>
+		</vbox>
+	</surface>
+</overlay>
