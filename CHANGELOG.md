@@ -2,6 +2,22 @@
 
 Version format `YYMM.DDRR` (year, month, day, revision of that day). Newest first. Keep entries to one line where possible.
 
+## 2610.1304
+
+- `shape="chamfer"` on `surface` (T-413) with `cut` and `cut-tl`/`cut-tr`/`cut-br`/`cut-bl`: fill polygon and anti-aliased outline painted in `SSlaterSurface::OnPaint`, no material; `FSlaterChamfer`, `Slater::MakeChamferPath`, `SetChamfer`. Gallery gains a "Shapes" row. Tests `BRS.SlaterUI.Chamfer.*`, `Render.Chamfer`, `Render.ChamferGallery` (need `-WithRHI`).
+
+## 2610.1303
+
+- `motion` style token (T-404): `<motion name duration ease/>` (duration 0 to 2 s, ease one of `Linear`, `Quad*`, `Cubic*` In/Out/InOut, default `Linear`), `FSlaterMotion`, `ISlaterStyleSource::FindMotion` with the parent walk, `ESlaterTokenKind::Motion`, `Slater::EaseWords()`; Base defines `UI.Motion.Panel` (0.1 s, `CubicOut`). Tests in `BRS.SlaterUI.Style.*`.
+
+## 2610.1302
+
+- `<meter>` (`value` bindable 0..1 and clamped, `color`, `track`, height by the common `height`) and `<rule>` (`color`, `thickness`) stock elements, widget `SSlaterMeter` (T-409). Rounded-box brush with a texture rounds the image (checked by `Render.Meter`).
+
+## 2610.1301
+
+- Account dashboard v1 sample (T-408): `Content/UI/Layouts/Account.sltr` (templates `stat` and `link-card`, credit rows by `repeat`, wide cards, a fixed-width progress fill until `<meter>`), `Account.mock.json`, style `Skyline` (navy and teal, extends Base); Base gains `UI.Surface.Card` (+`.Hover`) `Inset` `Track` `Fill` with their colors and `UI.Radius.Card`, Dusk their dark colors. Tests `BRS.SlaterUI.Account.*`, `BRS.SlaterUI.Render.Account` (needs `-WithRHI`).
+
 ## 2610.1213
 
 - Popup spike harness (T-416): console command `Slater.PopupSpike` in SlaterUIUMG shows an `SMenuAnchor` menu and `MenuRight` submenu in the PIE viewport and logs focus, keys and open/close. No behavior change otherwise.

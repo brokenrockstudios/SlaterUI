@@ -1,0 +1,101 @@
+<?xml version="1.0"?>
+<!-- An account dashboard page (T-408, v1): a profile card on the left; three link cards, a subscribers card and a progress card on the right.
+     Data: Account.mock.json. Show it with the Skyline style (the card surfaces are defined there). Hover is the style's instant outline (the fade is T-410).
+     The progress bar is a track and a fixed-width fill until <meter> exists (T-409). -->
+<hbox>
+	<template name="stat" params="label value">
+		<vbox>
+			<text font="UI.Font.Caption" color="UI.Color.TextMuted">$label</text>
+			<text>$value</text>
+		</vbox>
+	</template>
+	<template name="link-card" params="icon title body link">
+		<surface role="UI.Surface.Card" interactive="true" inset="UI.Space.L" width="230">
+			<vbox>
+				<image src="$icon" size="28" halign="left"/>
+				<spacer height="8"/>
+				<text font="UI.Font.Heading">$title</text>
+				<spacer height="4"/>
+				<text wrap="true" color="UI.Color.TextMuted" width="198">$body</text>
+				<spacer height="12"/>
+				<hbox>
+					<text color="UI.Color.Accent" valign="center">$link</text>
+					<spacer width="6"/>
+					<image src="External" size="14" valign="center"/>
+				</hbox>
+			</vbox>
+		</surface>
+	</template>
+
+	<surface role="UI.Surface.Background" inset="UI.Space.L">
+		<hbox>
+			<surface role="UI.Surface.Card" inset="UI.Space.L" width="300" valign="top">
+				<vbox>
+					<hbox>
+						<image src="{Avatar}" size="64" valign="center"/>
+						<vbox valign="center" margin="UI.Space.L">
+							<text font="UI.Font.Heading">{Name}</text>
+							<text color="UI.Color.TextMuted">{Handle}</text>
+						</vbox>
+					</hbox>
+					<spacer height="16"/>
+					<hbox>
+						<stat label="Enlisted" value="{Enlisted}" fill="1"/>
+						<stat label="Country" value="{Country}" fill="1"/>
+					</hbox>
+					<spacer height="16"/>
+					<text font="UI.Font.Caption" color="UI.Color.TextMuted">Credits</text>
+					<spacer height="6"/>
+					<repeat source="{Credits}" key="Id" columns="1" cell-width="268" cell-height="26">
+						<hbox>
+							<text color="UI.Color.TextMuted" fill="1" valign="center">{Role}</text>
+							<text valign="center">{Title}</text>
+						</hbox>
+					</repeat>
+					<spacer height="16"/>
+					<surface id="Dossier" role="UI.Surface.Button" inset="UI.Space.M" on-click="Account.Dossier">
+						<text color="UI.Color.Panel" justify="center">Open dossier</text>
+					</surface>
+				</vbox>
+			</surface>
+
+			<spacer width="16"/>
+
+			<vbox valign="top">
+				<hbox>
+					<link-card icon="Book" title="Handbook" body="Rules of the field, loadouts and how a season runs." link="Read the handbook"/>
+					<spacer width="16"/>
+					<link-card icon="Globe" title="Servers" body="Pick a region and see which squads are playing now." link="Browse servers"/>
+					<spacer width="16"/>
+					<link-card icon="Gift" title="Rewards" body="Claim what you earned and see what is coming next." link="Open rewards"/>
+				</hbox>
+				<spacer height="16"/>
+				<surface id="Subscribers" role="UI.Surface.Card" interactive="true" inset="UI.Space.L">
+					<hbox>
+						<vbox fill="1" valign="center">
+							<text font="UI.Font.Heading">Subscribers</text>
+							<text color="UI.Color.TextMuted">People who follow your updates.</text>
+						</vbox>
+						<surface role="UI.Surface.Inset" inset="UI.Space.M" valign="center">
+							<text font="UI.Font.Heading" color="UI.Color.Accent">{Subscribers}</text>
+						</surface>
+					</hbox>
+				</surface>
+				<spacer height="16"/>
+				<surface id="Progress" role="UI.Surface.Card" interactive="true" inset="UI.Space.L">
+					<vbox>
+						<hbox>
+							<text font="UI.Font.Heading" fill="1">Season progress</text>
+							<text color="UI.Color.TextMuted" valign="center">{Progress}</text>
+						</hbox>
+						<spacer height="12"/>
+						<overlay>
+							<surface role="UI.Surface.Track" height="8"/>
+							<surface role="UI.Surface.Fill" width="27" height="8" halign="left"/>
+						</overlay>
+					</vbox>
+				</surface>
+			</vbox>
+		</hbox>
+	</surface>
+</hbox>

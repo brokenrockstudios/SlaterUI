@@ -15,6 +15,7 @@ const TCHAR* LexToString(ESlaterTokenKind Kind)
 	case ESlaterTokenKind::Metric: return TEXT("metric");
 	case ESlaterTokenKind::Font: return TEXT("font");
 	case ESlaterTokenKind::Surface: return TEXT("surface");
+	case ESlaterTokenKind::Motion: return TEXT("motion");
 	}
 	return TEXT("token");
 }
@@ -102,6 +103,12 @@ namespace Slater
 			}
 		}
 		return Best ? *Best : FString();
+	}
+
+	const TArray<FString>& EaseWords()
+	{
+		static const TArray<FString> Words = {TEXT("Linear"), TEXT("QuadIn"), TEXT("QuadOut"), TEXT("QuadInOut"), TEXT("CubicIn"), TEXT("CubicOut"), TEXT("CubicInOut")};
+		return Words;
 	}
 
 	FString DidYouMean(const ISlaterStyleSource& Source, ESlaterTokenKind Kind, const FString& Name)
@@ -212,6 +219,16 @@ bool FSlaterStyle::FindSurface(FName Token, FSlaterSurface& OutSurface) const
 	return Def && ResolveSurface(*Def, *this, OutSurface);
 }
 
+bool FSlaterStyle::FindMotion(FName Token, FSlaterMotion& OutMotion) const
+{
+	return WalkUp(Token, [&](FName Name)
+	{
+		const FSlaterMotion* Found = Motions.Find(Name);
+		if (Found) { OutMotion = *Found; }
+		return Found != nullptr;
+	});
+}
+
 void FSlaterStyle::GetKnownTokens(ESlaterTokenKind Kind, TArray<FName>& OutTokens) const
 {
 	switch (Kind)
@@ -220,6 +237,7 @@ void FSlaterStyle::GetKnownTokens(ESlaterTokenKind Kind, TArray<FName>& OutToken
 	case ESlaterTokenKind::Metric: AppendKeys(Metrics, OutTokens); break;
 	case ESlaterTokenKind::Font: AppendKeys(Fonts, OutTokens); break;
 	case ESlaterTokenKind::Surface: AppendKeys(Surfaces, OutTokens); break;
+	case ESlaterTokenKind::Motion: AppendKeys(Motions, OutTokens); break;
 	}
 }
 
@@ -283,6 +301,22 @@ bool FSlaterStyleStack::FindSurface(FName Token, FSlaterSurface& OutSurface) con
 		return Def != nullptr;
 	});
 	return Def && ResolveSurface(*Def, *this, OutSurface);
+}
+
+bool FSlaterStyleStack::FindMotion(FName Token, FSlaterMotion& OutMotion) const
+{
+	return WalkUp(Token, [&](FName Name)
+	{
+		for (int32 I = Layers.Num() - 1; I >= 0; --I)
+		{
+			if (const FSlaterMotion* Found = Layers[I]->Motions.Find(Name))
+			{
+				OutMotion = *Found;
+				return true;
+			}
+		}
+		return false;
+	});
 }
 
 void FSlaterStyleStack::GetKnownTokens(ESlaterTokenKind Kind, TArray<FName>& OutTokens) const
@@ -401,10 +435,10 @@ namespace
 			}
 			if (!Root.Text.IsEmpty())
 			{
-				Report(Root.TextPos, TEXT("<style> holds only <color>, <metric>, <font> and <surface> elements, not text"));
+				Report(Root.TextPos, TEXT("<style> holds only <color>, <metric>, <font>, <surface> and <motion> elements, not text"));
 			}
 
-			const TArray<FString> Tags = ToStrings({TEXT("color"), TEXT("metric"), TEXT("font"), TEXT("surface")});
+			const TArray<FString> Tags = ToStrings({TEXT("color"), TEXT("metric"), TEXT("font"), TEXT("surface"), TEXT("motion")});
 			for (const FSlaterNode& Child : Root.Children)
 			{
 				if (!Child.Children.IsEmpty() || !Child.Text.IsEmpty())
@@ -415,9 +449,10 @@ namespace
 				else if (Child.Tag == TEXT("metric")) { ReadMetric(Child); }
 				else if (Child.Tag == TEXT("font")) { ReadFont(Child); }
 				else if (Child.Tag == TEXT("surface")) { ReadSurface(Child); }
+				else if (Child.Tag == TEXT("motion")) { ReadMotion(Child); }
 				else
 				{
-					Report(Child.Pos, FString::Printf(TEXT("unknown element <%s> in a style; expected <color>, <metric>, <font> or <surface>%s"), *Child.Tag, *Near(Child.Tag, Tags)));
+					Report(Child.Pos, FString::Printf(TEXT("unknown element <%s> in a style; expected <color>, <metric>, <font>, <surface> or <motion>%s"), *Child.Tag, *Near(Child.Tag, Tags)));
 				}
 			}
 		}
@@ -428,7 +463,7 @@ namespace
 		FSlaterStyle& Style;
 		TArray<FSlaterError>& Errors;
 		/** Where each token was first defined, per kind, for the duplicate message. */
-		TMap<FName, FSlaterPos> First[4];
+		TMap<FName, FSlaterPos> First[5];
 
 		void Report(const FSlaterPos& Pos, const FString& Message)
 		{
@@ -546,6 +581,41 @@ namespace
 			if (bOk)
 			{
 				Style.Fonts.Add(Token, FSlaterFont{FName(*Role->Value), static_cast<int32>(SizeValue)});
+			}
+		}
+
+		void ReadMotion(const FSlaterNode& Node)
+		{
+			CheckAttributes(Node, {TEXT("name"), TEXT("duration"), TEXT("ease")});
+			const FName Token = ReadTokenName(Node, ESlaterTokenKind::Motion);
+			const FSlaterAttribute* Duration = Require(Node, TEXT("duration"));
+			if (Token.IsNone() || !Duration)
+			{
+				return;
+			}
+			bool bOk = true;
+			float Seconds = 0.f;
+			if (!ParseNumber(Duration->Value, Seconds) || Seconds < 0.f || Seconds > FSlaterMotion::MaxDuration)
+			{
+				Report(Duration->Pos, FString::Printf(TEXT("motion duration '%s' must be seconds from 0 to %g"), *Duration->Value, FSlaterMotion::MaxDuration));
+				bOk = false;
+			}
+			FName Ease = TEXT("Linear");
+			if (const FSlaterAttribute* EaseAttribute = Node.FindAttribute(TEXT("ease")))
+			{
+				if (!Slater::EaseWords().Contains(EaseAttribute->Value))
+				{
+					Report(EaseAttribute->Pos, FString::Printf(TEXT("motion ease '%s' is not one of %s%s"), *EaseAttribute->Value, *JoinQuoted(Slater::EaseWords()), *Near(EaseAttribute->Value, Slater::EaseWords())));
+					bOk = false;
+				}
+				else
+				{
+					Ease = FName(*EaseAttribute->Value);
+				}
+			}
+			if (bOk)
+			{
+				Style.Motions.Add(Token, FSlaterMotion{Seconds, Ease});
 			}
 		}
 

@@ -379,6 +379,7 @@ namespace
 		case ESlaterTokenKind::Metric: bFound = Style.FindMetric(Token, OutValue.Number); break;
 		case ESlaterTokenKind::Font: bFound = Style.FindFont(Token, OutValue.Font); break;
 		case ESlaterTokenKind::Surface: bFound = Style.FindSurface(Token, OutValue.Surface); break;
+		case ESlaterTokenKind::Motion: break; // no attribute type takes a motion token yet (T-405, T-406)
 		}
 		if (!bFound)
 		{

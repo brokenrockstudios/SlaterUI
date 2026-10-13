@@ -5,7 +5,58 @@
 #include "SlaterCommands.h"
 #include "SlaterView.h"
 
+#include "Framework/Application/SlateApplication.h"
+#include "Rendering/DrawElements.h"
+#include "Rendering/SlateRenderer.h"
+#include "Styling/CoreStyle.h"
+#include "Styling/StyleDefaults.h"
+
 DEFINE_LOG_CATEGORY_STATIC(LogSlaterSurface, Log, All);
+
+void Slater::MakeChamferPath(const FVector2f& Size, const FSlaterChamfer& Cuts, float Inset, TArray<FVector2f>& OutPoints)
+{
+	OutPoints.Reset();
+	const float X0 = Inset;
+	const float Y0 = Inset;
+	const float X1 = Size.X - Inset;
+	const float Y1 = Size.Y - Inset;
+	if (X1 <= X0 || Y1 <= Y0)
+	{
+		return;
+	}
+
+	// Two cuts along one edge must fit in it: shrink all four by the same factor, which keeps the shape.
+	float TL = FMath::Max(Cuts.TopLeft, 0.f);
+	float TR = FMath::Max(Cuts.TopRight, 0.f);
+	float BR = FMath::Max(Cuts.BottomRight, 0.f);
+	float BL = FMath::Max(Cuts.BottomLeft, 0.f);
+	float Scale = 1.f;
+	const auto Fit = [&Scale](float Sum, float Length)
+	{
+		if (Sum > Length)
+		{
+			Scale = FMath::Min(Scale, Length / Sum);
+		}
+	};
+	Fit(TL + TR, Size.X);
+	Fit(BL + BR, Size.X);
+	Fit(TL + BL, Size.Y);
+	Fit(TR + BR, Size.Y);
+
+	// The diagonal x + y = c moved inwards by Inset is x + y = c + Inset * sqrt(2). It meets the shrunk box's left edge
+	// (x = Inset) at y = c + Inset * (sqrt(2) - 1), which is a cut of c + Inset * (sqrt(2) - 2) from the shrunk corner.
+	const float Grow = Inset * (UE_SQRT_2 - 2.f);
+	const auto Cut = [Scale, Grow](float C) { return C > 0.f ? FMath::Max(C * Scale + Grow, 0.f) : 0.f; };
+	TL = Cut(TL);
+	TR = Cut(TR);
+	BR = Cut(BR);
+	BL = Cut(BL);
+
+	if (TL > 0.f) { OutPoints.Add(FVector2f(X0, Y0 + TL)); OutPoints.Add(FVector2f(X0 + TL, Y0)); } else { OutPoints.Add(FVector2f(X0, Y0)); }
+	if (TR > 0.f) { OutPoints.Add(FVector2f(X1 - TR, Y0)); OutPoints.Add(FVector2f(X1, Y0 + TR)); } else { OutPoints.Add(FVector2f(X1, Y0)); }
+	if (BR > 0.f) { OutPoints.Add(FVector2f(X1, Y1 - BR)); OutPoints.Add(FVector2f(X1 - BR, Y1)); } else { OutPoints.Add(FVector2f(X1, Y1)); }
+	if (BL > 0.f) { OutPoints.Add(FVector2f(X0 + BL, Y1)); OutPoints.Add(FVector2f(X0, Y1 - BL)); } else { OutPoints.Add(FVector2f(X0, Y1)); }
+}
 
 FSlateBrush SSlaterSurface::MakeBrush(const FSlaterSurface& InSurface)
 {
@@ -65,8 +116,92 @@ void SSlaterSurface::Refresh()
 		return;
 	}
 	Surface = Wanted;
+	if (IsChamfered())
+	{
+		// Drawn in OnPaint from the surface values; the border keeps its empty brush.
+		Invalidate(EInvalidateWidgetReason::Paint);
+		return;
+	}
 	Brush = BrushFor(Surface);
 	SetBorderImage(Brush.Get());
+}
+
+void SSlaterSurface::SetChamfer(const FSlaterChamfer& InCuts)
+{
+	Chamfer = InCuts;
+	if (IsChamfered())
+	{
+		SetBorderImage(FStyleDefaults::GetNoBrush());
+		Invalidate(EInvalidateWidgetReason::Paint);
+	}
+	else
+	{
+		Brush = BrushFor(Surface);
+		SetBorderImage(Brush.Get());
+	}
+}
+
+int32 SSlaterSurface::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
+{
+	if (!IsChamfered())
+	{
+		return SBorder::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
+	}
+
+	const ESlateDrawEffect Effects = ShouldBeEnabled(bParentEnabled) ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect;
+	const float Opacity = InWidgetStyle.GetColorAndOpacityTint().A;
+	const FVector2f Size = AllottedGeometry.GetLocalSize();
+
+	// The outline sits inside the box, its center line half a border width in. With no border a one pixel line in the
+	// fill color is drawn on the same path: the polygon's edge has no anti-aliasing of its own, the line has.
+	const bool bBorder = Surface.BorderWidth > 0.f && Surface.Border.A > 0.f;
+	const float EdgeWidth = bBorder ? Surface.BorderWidth : 1.f;
+	FLinearColor EdgeColor = bBorder ? Surface.Border : Surface.Fill;
+	TArray<FVector2f> Path;
+	Slater::MakeChamferPath(Size, Chamfer, EdgeWidth * 0.5f, Path);
+	if (Path.Num() < 3)
+	{
+		return SBorder::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId + 2, InWidgetStyle, bParentEnabled);
+	}
+
+	if (Surface.Fill.A > 0.f && FSlateApplication::IsInitialized() && FSlateApplication::Get().GetRenderer())
+	{
+		// Custom vertices need a texture to sample; the core style's white box, sampled at the middle of its area.
+		const FSlateBrush* White = FCoreStyle::Get().GetBrush("GenericWhiteBox");
+		const FSlateResourceHandle Handle = FSlateApplication::Get().GetRenderer()->GetResourceHandle(*White);
+		const FSlateShaderResourceProxy* Proxy = Handle.GetResourceProxy();
+		if (Proxy)
+		{
+			FLinearColor FillColor = Surface.Fill;
+			FillColor.A *= Opacity;
+			const FColor Vertex = FillColor.ToFColorSRGB();
+			const FVector2f Uv = Proxy->StartUV + Proxy->SizeUV * 0.5f;
+			const FSlateRenderTransform& Transform = AllottedGeometry.GetAccumulatedRenderTransform();
+			TArray<FSlateVertex> Vertices;
+			TArray<SlateIndex> Indices;
+			for (const FVector2f& Point : Path)
+			{
+				Vertices.Add(FSlateVertex::Make(Transform, Point, Uv, Vertex));
+			}
+			// The polygon is convex, so a fan from the first point covers it.
+			for (int32 Index = 1; Index + 1 < Path.Num(); ++Index)
+			{
+				Indices.Add(0);
+				Indices.Add(static_cast<SlateIndex>(Index));
+				Indices.Add(static_cast<SlateIndex>(Index + 1));
+			}
+			FSlateDrawElement::MakeCustomVerts(OutDrawElements, LayerId, Handle, Vertices, Indices, nullptr, 0, 0, Effects);
+		}
+	}
+
+	EdgeColor.A *= Opacity;
+	if (EdgeColor.A > 0.f)
+	{
+		const FVector2f First = Path[0];
+		Path.Add(First);
+		FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 1, AllottedGeometry.ToPaintGeometry(), Path, Effects, EdgeColor, true, EdgeWidth);
+	}
+	return SBorder::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId + 2, InWidgetStyle, bParentEnabled);
 }
 
 void SSlaterSurface::SetInteractive(const FSlaterSurface& InHover, const FSlaterSurface& InPressed)

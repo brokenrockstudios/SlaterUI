@@ -9,4 +9,9 @@
 	<color name="UI.Color.Accent" value="#5B8DEF"/>
 	<color name="UI.Color.Accent.Hover" value="#7AA3F4"/>
 	<color name="UI.Color.Accent.Pressed" value="#406FCB"/>
+	<color name="UI.Color.Card" value="#1E2128"/>
+	<color name="UI.Color.Card.Hover" value="#242831"/>
+	<color name="UI.Color.CardLine" value="#363B46"/>
+	<color name="UI.Color.Inset" value="#181B21"/>
+	<color name="UI.Color.Track" value="#2A2F39"/>
 </style>

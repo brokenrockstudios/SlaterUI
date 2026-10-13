@@ -12,6 +12,7 @@ enum class ESlaterTokenKind : uint8
 	Metric,
 	Font,
 	Surface,
+	Motion,
 };
 
 SLATERUI_API const TCHAR* LexToString(ESlaterTokenKind Kind);
@@ -24,6 +25,19 @@ struct FSlaterFont
 {
 	FName Role = TEXT("Regular");
 	int32 Size = 12;
+};
+
+/** How long a transition takes and how it eases. Plain data; the animator (T-406) turns the ease into a curve. */
+struct FSlaterMotion
+{
+	/** Seconds, 0 to `MaxDuration`. 0 means instant. */
+	float Duration = 0.f;
+	/** One of `Slater::EaseWords()`; `Linear` when unset. */
+	FName Ease = TEXT("Linear");
+
+	static constexpr float MaxDuration = 2.f;
+
+	bool operator==(const FSlaterMotion& Other) const { return Duration == Other.Duration && Ease == Other.Ease; }
 };
 
 /** A procedural rounded box, fully resolved. */
@@ -55,6 +69,8 @@ public:
 	virtual bool FindFont(FName Token, FSlaterFont& OutFont) const = 0;
 	/** Resolves the surface's color and metric tokens through this same source, so a layer above can retheme it. */
 	virtual bool FindSurface(FName Token, FSlaterSurface& OutSurface) const = 0;
+	/** A transition's duration and ease (`<motion>`), found by the same parent walk as the other kinds. */
+	virtual bool FindMotion(FName Token, FSlaterMotion& OutMotion) const = 0;
 
 	/** Every token this source defines itself (not the fall-back parents), for "did you mean" errors. */
 	virtual void GetKnownTokens(ESlaterTokenKind Kind, TArray<FName>& OutTokens) const = 0;
@@ -76,6 +92,9 @@ namespace Slater
 
 	/** `SuggestNearest` over a source's tokens of one kind, in the form `; did you mean 'X'?` or empty. */
 	SLATERUI_API FString DidYouMean(const ISlaterStyleSource& Source, ESlaterTokenKind Kind, const FString& Name);
+
+	/** The ease words a `<motion>` may name, the engine's `ECurveEaseFunction` names: `Linear`, `QuadIn` ... `CubicInOut`. */
+	SLATERUI_API const TArray<FString>& EaseWords();
 }
 
 /** What a `<surface>` says. Colors and metrics are token names, resolved at lookup so layers can override them. */
@@ -112,11 +131,13 @@ public:
 	TMap<FName, float> Metrics;
 	TMap<FName, FSlaterFont> Fonts;
 	TMap<FName, FSlaterSurfaceDef> Surfaces;
+	TMap<FName, FSlaterMotion> Motions;
 
 	virtual bool FindColor(FName Token, FLinearColor& OutColor) const override;
 	virtual bool FindMetric(FName Token, float& OutMetric) const override;
 	virtual bool FindFont(FName Token, FSlaterFont& OutFont) const override;
 	virtual bool FindSurface(FName Token, FSlaterSurface& OutSurface) const override;
+	virtual bool FindMotion(FName Token, FSlaterMotion& OutMotion) const override;
 	virtual void GetKnownTokens(ESlaterTokenKind Kind, TArray<FName>& OutTokens) const override;
 };
 
@@ -135,6 +156,7 @@ public:
 	virtual bool FindMetric(FName Token, float& OutMetric) const override;
 	virtual bool FindFont(FName Token, FSlaterFont& OutFont) const override;
 	virtual bool FindSurface(FName Token, FSlaterSurface& OutSurface) const override;
+	virtual bool FindMotion(FName Token, FSlaterMotion& OutMotion) const override;
 	virtual void GetKnownTokens(ESlaterTokenKind Kind, TArray<FName>& OutTokens) const override;
 
 private:

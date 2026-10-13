@@ -10,6 +10,32 @@
 
 class SSlaterView;
 
+/** The size of the diagonal cut at each corner of a chamfered surface (`shape="chamfer"`), in slate units. 0 leaves the corner square. */
+struct FSlaterChamfer
+{
+	float TopLeft = 0.f;
+	float TopRight = 0.f;
+	float BottomRight = 0.f;
+	float BottomLeft = 0.f;
+
+	bool IsSet() const { return TopLeft > 0.f || TopRight > 0.f || BottomRight > 0.f || BottomLeft > 0.f; }
+	bool operator==(const FSlaterChamfer& Other) const
+	{
+		return TopLeft == Other.TopLeft && TopRight == Other.TopRight && BottomRight == Other.BottomRight && BottomLeft == Other.BottomLeft;
+	}
+};
+
+namespace Slater
+{
+	/**
+	 * The outline of a chamfered box of this size, clockwise from the top left, as 4 to 8 points (a corner with no cut is
+	 * one point, a cut corner is two). `Inset` moves the outline inwards by that distance on every side, which is how the
+	 * line of a border of that width is centered inside the box. Cuts are scaled down together when two of them would not
+	 * fit along an edge.
+	 */
+	SLATERUI_API void MakeChamferPath(const FVector2f& Size, const FSlaterChamfer& Cuts, float Inset, TArray<FVector2f>& OutPoints);
+}
+
 /**
  * A procedural rounded box (fill, outline, corner radius) around one child. The brush is owned here, so the
  * surface can change at runtime without a texture or a material.
@@ -78,6 +104,17 @@ public:
 	/** The surface drawn now (the resting one, or the hover or pressed one for an interactive surface). */
 	const FSlaterSurface& GetSurface() const { return Surface; }
 
+	/**
+	 * Cuts the corners (`shape="chamfer"`): the fill is a polygon and the outline a line, both drawn in `OnPaint`, and the
+	 * rounded-box brush is not used (the corner radius of the surface is ignored). Hit testing stays the whole rectangle.
+	 * No cut at all (`!IsSet()`) goes back to the rounded box.
+	 */
+	void SetChamfer(const FSlaterChamfer& InCuts);
+	const FSlaterChamfer& GetChamfer() const { return Chamfer; }
+	bool IsChamfered() const { return Chamfer.IsSet(); }
+
+	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
+
 	/** The style role this surface was made from (`UI.Surface.Button`), so a state can look up `<role>.Hover` later. */
 	void SetRole(FName InRole) { Role = InRole; }
 	FName GetRole() const { return Role; }
@@ -100,6 +137,7 @@ private:
 	FSlaterSurface RestingSurface;
 	FSlaterSurface HoverSurface;
 	FSlaterSurface PressedSurface;
+	FSlaterChamfer Chamfer;
 	bool bInteractive = false;
 	bool bHovered = false;
 	bool bPressed = false;

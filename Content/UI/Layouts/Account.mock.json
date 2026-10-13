@@ -1,0 +1,26 @@
+{
+	"Name": "Tom Gorman",
+	"Handle": "@tom.gorman",
+	"Avatar": "Frog",
+	"Enlisted": "14 Mar 2019",
+	"Country": "US",
+	"Credits": [
+		{
+			"Id": "c1",
+			"Role": "Level design",
+			"Title": "Skybrook"
+		},
+		{
+			"Id": "c2",
+			"Role": "Sound",
+			"Title": "Hollow Quarry"
+		},
+		{
+			"Id": "c3",
+			"Role": "Community",
+			"Title": "Broken Rock"
+		}
+	],
+	"Subscribers": "1,284",
+	"Progress": "4%"
+}

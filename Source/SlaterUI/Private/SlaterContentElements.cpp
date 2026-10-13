@@ -2,10 +2,12 @@
 
 #include "SlaterElements.h"
 #include "SlaterCommands.h"
+#include "SlaterMeter.h"
 #include "SlaterOutlet.h"
 #include "SlaterSurface.h"
 
 #include "Styling/CoreStyle.h"
+#include "Widgets/Colors/SColorBlock.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -46,6 +48,41 @@ namespace
 		const FName Role = RoleValue.Word;
 		const float InsetValue = Context.GetMetric(InsetName);
 
+		static const FName ShapeName(TEXT("shape"));
+		static const FName CutNames[5] = {FName(TEXT("cut")), FName(TEXT("cut-tl")), FName(TEXT("cut-tr")), FName(TEXT("cut-br")), FName(TEXT("cut-bl"))};
+		const bool bChamfer = Context.GetEnum(ShapeName, FName(TEXT("rounded"))) == FName(TEXT("chamfer"));
+		FSlaterChamfer Chamfer;
+		{
+			bool bAnyCut = false;
+			float Cuts[5] = {};
+			for (int32 Index = 0; Index < 5; ++Index)
+			{
+				const bool bHas = Context.Has(CutNames[Index]);
+				bAnyCut |= bHas;
+				// A corner attribute that is absent reads -1, so it takes `cut` below.
+				Cuts[Index] = bHas ? Context.GetMetric(CutNames[Index]) : (Index == 0 ? 0.f : -1.f);
+				if (bHas && Cuts[Index] < 0.f)
+				{
+					Context.Failure = FString::Printf(TEXT("<surface> %s must not be negative"), *CutNames[Index].ToString());
+					return nullptr;
+				}
+			}
+			if (bAnyCut && !bChamfer)
+			{
+				Context.Failure = TEXT("<surface> cut, cut-tl, cut-tr, cut-br and cut-bl only apply to shape=\"chamfer\"");
+				return nullptr;
+			}
+			Chamfer.TopLeft = Cuts[1] >= 0.f ? Cuts[1] : Cuts[0];
+			Chamfer.TopRight = Cuts[2] >= 0.f ? Cuts[2] : Cuts[0];
+			Chamfer.BottomRight = Cuts[3] >= 0.f ? Cuts[3] : Cuts[0];
+			Chamfer.BottomLeft = Cuts[4] >= 0.f ? Cuts[4] : Cuts[0];
+			if (bChamfer && !Chamfer.IsSet())
+			{
+				Context.Failure = TEXT("<surface shape=\"chamfer\"> needs a cut above 0, for example cut=\"12\" or cut-tl=\"12\"");
+				return nullptr;
+			}
+		}
+
 		// The child's margin and the surface's inset share the border's one padding; they add. Everything goes in through
 		// the construction arguments: a setter on a fresh widget only invalidates it.
 		const bool bHasChild = Context.Children.Num() > 0;
@@ -57,6 +94,10 @@ namespace
 				Child ? Child->Widget : SNullWidget::NullWidget
 			];
 		Widget->SetRole(Role);
+		if (bChamfer)
+		{
+			Widget->SetChamfer(Chamfer);
+		}
 		static const FName OnClickName(TEXT("on-click"));
 		static const FName SetStateName(TEXT("set-state"));
 		static const FName InteractiveName(TEXT("interactive"));
@@ -174,6 +215,75 @@ namespace
 		}
 	}
 
+	TSharedPtr<SWidget> BuildMeter(FSlaterBuildContext& Context)
+	{
+		// Value, color and track always have a value here: the attribute's, or the default (ResolveMeterDefaults).
+		return SNew(SSlaterMeter)
+			.Value(Context.GetMetric(TEXT("value")))
+			.FillColor(Context.GetColor(TEXT("color")))
+			.TrackColor(Context.GetColor(TEXT("track")));
+	}
+
+	TSharedPtr<SWidget> BuildRule(FSlaterBuildContext& Context)
+	{
+		// The width is the parent's to give (a fill alignment stretches it); only the thickness is fixed.
+		return SNew(SColorBlock)
+			.Color(Context.GetColor(TEXT("color")))
+			.Size(FVector2D(1.f, FMath::Max(Context.GetMetric(TEXT("thickness")), 0.f)));
+	}
+
+	void AddColorDefault(const ISlaterStyleSource& Style, TMap<FName, FSlaterValue>& Values, const TCHAR* Attr, const TCHAR* Token, const FLinearColor& Fallback)
+	{
+		if (!Values.Contains(Attr))
+		{
+			FSlaterValue Value;
+			Value.Type = ESlaterAttrType::Color;
+			Value.Color = Fallback;
+			Style.FindColor(Token, Value.Color);
+			Values.Add(Attr, MoveTemp(Value));
+		}
+	}
+
+	void AddMetricDefault(TMap<FName, FSlaterValue>& Values, const TCHAR* Attr, float Number)
+	{
+		if (!Values.Contains(Attr))
+		{
+			FSlaterValue Value;
+			Value.Type = ESlaterAttrType::Metric;
+			Value.Number = Number;
+			Values.Add(Attr, MoveTemp(Value));
+		}
+	}
+
+	/** The bar takes the accent color on a border-colored track unless the attributes say otherwise. */
+	void ResolveMeterDefaults(const ISlaterStyleSource& Style, TMap<FName, FSlaterValue>& Values)
+	{
+		AddMetricDefault(Values, TEXT("value"), 0.f);
+		AddColorDefault(Style, Values, TEXT("color"), TEXT("UI.Color.Accent"), FLinearColor::White);
+		AddColorDefault(Style, Values, TEXT("track"), TEXT("UI.Color.Border"), FLinearColor::Black);
+	}
+
+	void ResolveRuleDefaults(const ISlaterStyleSource& Style, TMap<FName, FSlaterValue>& Values)
+	{
+		AddMetricDefault(Values, TEXT("thickness"), 1.f);
+		AddColorDefault(Style, Values, TEXT("color"), TEXT("UI.Color.Border"), FLinearColor::Black);
+	}
+
+	FSlaterBindTarget MeterValueBind()
+	{
+		FSlaterBindTarget Target;
+		Target.Apply = [](SWidget& Widget, const FSlaterValue& Value, const ISlaterStyleSource&)
+		{
+			static_cast<SSlaterMeter&>(Widget).SetValue(Value.Number);
+		};
+		Target.ApplyPolled = [](SWidget& Widget, TFunction<FSlaterValue()> Get, const ISlaterStyleSource&)
+		{
+			// The meter has no Slate attribute for the value; the polled variant exists only to compare cost, so it writes once.
+			static_cast<SSlaterMeter&>(Widget).SetValue(Get().Number);
+		};
+		return Target;
+	}
+
 	FSlaterBindTarget SurfaceStateBind()
 	{
 		FSlaterBindTarget Target;
@@ -186,6 +296,12 @@ namespace
 		{
 			// The brushes of the four states are made once; the getter only picks one, as a bound lambda would.
 			SSlaterSurface& Surface = static_cast<SSlaterSurface&>(Widget);
+			if (Surface.IsChamfered())
+			{
+				// A chamfered surface paints itself from its surface values, not from a border brush; only the pushed bind (SetSurface) reaches it.
+				Surface.SetSurface(ResolveSurface(Style, Surface.GetRole(), Get().Word));
+				return;
+			}
 			TSharedRef<TMap<FName, FSlateBrush>> Brushes = MakeShared<TMap<FName, FSlateBrush>>();
 			for (const TCHAR* State : {TEXT("normal"), TEXT("hover"), TEXT("pressed"), TEXT("disabled")})
 			{
@@ -266,6 +382,11 @@ void Slater::RegisterContentElements(FSlaterElementRegistry& Registry)
 		return Slater::CheckStatePair(Text, TEXT("leave-set-state"));
 	};
 	SurfaceDesc.Attributes.Add(MoveTemp(LeaveSetState));
+	SurfaceDesc.Attributes.Add(Attr(TEXT("shape"), ESlaterAttrType::Enum, {TEXT("rounded"), TEXT("chamfer")}));
+	for (const TCHAR* Cut : {TEXT("cut"), TEXT("cut-tl"), TEXT("cut-tr"), TEXT("cut-br"), TEXT("cut-bl")})
+	{
+		SurfaceDesc.Attributes.Add(Attr(Cut, ESlaterAttrType::Metric));
+	}
 	SurfaceDesc.Children = ESlaterChildRule::One;
 	SurfaceDesc.SlotAttrs = ESlaterSlotAttrs::Margin | ESlaterSlotAttrs::HAlign | ESlaterSlotAttrs::VAlign;
 	SurfaceDesc.ResolveDefaults = &ResolveSurfaceState;
@@ -298,4 +419,32 @@ void Slater::RegisterContentElements(FSlaterElementRegistry& Registry)
 	TextDesc.Builder = &BuildText;
 	const bool bText = Registry.Register(MoveTemp(TextDesc), &Error);
 	ensureMsgf(bText, TEXT("SlaterUI stock element <text>: %s"), *Error);
+
+	FSlaterElementDesc MeterDesc;
+	MeterDesc.Tag = TEXT("meter");
+	MeterDesc.Purpose = TEXT("a progress or fill bar, filled from the left to a value from 0 to 1");
+	MeterDesc.Attributes = {
+		Attr(TEXT("value"), ESlaterAttrType::Metric),
+		Attr(TEXT("color"), ESlaterAttrType::Color),
+		Attr(TEXT("track"), ESlaterAttrType::Color),
+	};
+	MeterDesc.Attributes[0].Bind = MeterValueBind();
+	MeterDesc.Children = ESlaterChildRule::None;
+	MeterDesc.ResolveDefaults = &ResolveMeterDefaults;
+	MeterDesc.Builder = &BuildMeter;
+	const bool bMeter = Registry.Register(MoveTemp(MeterDesc), &Error);
+	ensureMsgf(bMeter, TEXT("SlaterUI stock element <meter>: %s"), *Error);
+
+	FSlaterElementDesc RuleDesc;
+	RuleDesc.Tag = TEXT("rule");
+	RuleDesc.Purpose = TEXT("a thin horizontal line, a divider");
+	RuleDesc.Attributes = {
+		Attr(TEXT("color"), ESlaterAttrType::Color),
+		Attr(TEXT("thickness"), ESlaterAttrType::Metric),
+	};
+	RuleDesc.Children = ESlaterChildRule::None;
+	RuleDesc.ResolveDefaults = &ResolveRuleDefaults;
+	RuleDesc.Builder = &BuildRule;
+	const bool bRule = Registry.Register(MoveTemp(RuleDesc), &Error);
+	ensureMsgf(bRule, TEXT("SlaterUI stock element <rule>: %s"), *Error);
 }

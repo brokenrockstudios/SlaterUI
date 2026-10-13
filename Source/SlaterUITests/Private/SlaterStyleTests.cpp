@@ -124,6 +124,17 @@ TEST_CLASS(SlaterStyleFallbackTests, "BRS.SlaterUI.Style.Fallback")
 		ASSERT_THAT(IsTrue(Surface.CornerRadius == 5.f));
 	}
 
+	TEST_METHOD(Motion_IsDurationAndEase_AndFallsBackToTheParent)
+	{
+		const TSharedRef<FSlaterStyle> Style = StParse(TEXT("<style name='S'><motion name='UI.Motion.Panel' duration='0.25' ease='QuadInOut'/></style>"));
+		FSlaterMotion Motion;
+		ASSERT_THAT(IsTrue(Style->FindMotion(TEXT("UI.Motion.Panel.Fast"), Motion)));
+		ASSERT_THAT(IsTrue(Motion.Duration == 0.25f));
+		ASSERT_THAT(AreEqual(Motion.Ease, FName(TEXT("QuadInOut"))));
+		ASSERT_THAT(IsFalse(Style->FindMotion(TEXT("UI.Motion"), Motion)));
+		ASSERT_THAT(IsFalse(Style->FindMotion(TEXT("UI.Color.Panel"), Motion)));
+	}
+
 	TEST_METHOD(ParentToken_DropsTheLastSegment)
 	{
 		ASSERT_THAT(AreEqual(Slater::ParentToken(TEXT("A.B.C")), FName(TEXT("A.B"))));
@@ -187,6 +198,23 @@ TEST_CLASS(SlaterStyleLayerTests, "BRS.SlaterUI.Style.Layers")
 		TArray<FName> Known;
 		Stack.GetKnownTokens(ESlaterTokenKind::Metric, Known);
 		ASSERT_THAT(AreEqual(Known.Num(), 3));
+	}
+
+	TEST_METHOD(Motion_TopLayerWins_AndExactBeatsAParent)
+	{
+		FSlaterStyleStack Stack;
+		Stack.PushLayer(StParse(TEXT("<style name='A'><motion name='M.Slide' duration='0.1'/><motion name='M.Slide.Slow' duration='0.4' ease='CubicIn'/></style>")));
+		Stack.PushLayer(StParse(TEXT("<style name='B'><motion name='M.Slide' duration='0.2' ease='CubicOut'/></style>")));
+		FSlaterMotion Motion;
+		ASSERT_THAT(IsTrue(Stack.FindMotion(TEXT("M.Slide"), Motion)));
+		ASSERT_THAT(IsTrue(Motion.Duration == 0.2f));
+		ASSERT_THAT(AreEqual(Motion.Ease, FName(TEXT("CubicOut"))));
+		// The lower layer's exact name beats the higher layer's parent.
+		ASSERT_THAT(IsTrue(Stack.FindMotion(TEXT("M.Slide.Slow"), Motion)));
+		ASSERT_THAT(IsTrue(Motion.Duration == 0.4f));
+		TArray<FName> Known;
+		Stack.GetKnownTokens(ESlaterTokenKind::Motion, Known);
+		ASSERT_THAT(AreEqual(Known.Num(), 2));
 	}
 
 	TEST_METHOD(Extends_BuildsTheChainBaseFirst)
@@ -298,6 +326,37 @@ TEST_CLASS(SlaterStyleFileTests, "BRS.SlaterUI.Style.File")
 	TEST_METHOD(BadMetric_IsRefused)
 	{
 		ASSERT_THAT(AreEqual(StCheckError(TEXT("<style name='S'>\n<metric name='A' value='wide'/>\n</style>"), 2, 18, TEXT("not a number")), FString()));
+	}
+
+	TEST_METHOD(Motion_DefaultsToLinear)
+	{
+		const TSharedRef<FSlaterStyle> Style = StParse(TEXT("<style name='S'><motion name='M.Fade' duration='0'/></style>"));
+		FSlaterMotion Motion;
+		ASSERT_THAT(IsTrue(Style->FindMotion(TEXT("M.Fade"), Motion)));
+		ASSERT_THAT(IsTrue(Motion.Duration == 0.f));
+		ASSERT_THAT(AreEqual(Motion.Ease, FName(TEXT("Linear"))));
+	}
+
+	TEST_METHOD(BadMotionEase_SuggestsTheNearestWord)
+	{
+		ASSERT_THAT(AreEqual(StCheckError(TEXT("<style name='S'>\n<motion name='A' duration='0.1' ease='CubicOu'/>\n</style>"), 2, 33, TEXT("did you mean 'CubicOut'")), FString()));
+		ASSERT_THAT(AreEqual(StCheckError(TEXT("<style name='S'>\n<motion name='A' duration='0.1' ease='bounce'/>\n</style>"), 2, 33, TEXT("is not one of")), FString()));
+	}
+
+	TEST_METHOD(BadMotionDuration_IsRefused)
+	{
+		ASSERT_THAT(AreEqual(StCheckError(TEXT("<style name='S'>\n<motion name='A' duration='-0.1'/>\n</style>"), 2, 18, TEXT("from 0 to 2")), FString()));
+		ASSERT_THAT(AreEqual(StCheckError(TEXT("<style name='S'>\n<motion name='A' duration='2.5'/>\n</style>"), 2, 18, TEXT("from 0 to 2")), FString()));
+		ASSERT_THAT(AreEqual(StCheckError(TEXT("<style name='S'>\n<motion name='A' duration='slow'/>\n</style>"), 2, 18, TEXT("from 0 to 2")), FString()));
+		ASSERT_THAT(AreEqual(StCheckError(TEXT("<style name='S'>\n<motion name='A'/>\n</style>"), 2, 1, TEXT("needs a 'duration'")), FString()));
+	}
+
+	TEST_METHOD(DuplicateMotion_NamesTheFirst_AndOtherKindsMayShareTheName)
+	{
+		ASSERT_THAT(AreEqual(StCheckError(TEXT("<style name='S'>\n<motion name='A' duration='0.1'/>\n<motion name='A' duration='0.2'/>\n</style>"), 3, 9, TEXT("already defined at (2,9)")), FString()));
+		const TSharedRef<FSlaterStyle> Style = StParse(TEXT("<style name='S'><metric name='A' value='1'/><motion name='A' duration='0.1'/></style>"));
+		ASSERT_THAT(AreEqual(Style->Motions.Num(), 1));
+		ASSERT_THAT(AreEqual(Style->Metrics.Num(), 1));
 	}
 
 	TEST_METHOD(BadFontRole_SuggestsTheNearestRole)
@@ -468,6 +527,19 @@ TEST_CLASS(SlaterShippedStyleTests, "BRS.SlaterUI.Style.Shipped")
 		ASSERT_THAT(IsTrue(bLoaded));
 		ASSERT_THAT(IsTrue(Library.Find(TEXT("Base")).IsValid()));
 		ASSERT_THAT(IsTrue(Library.Find(TEXT("Dusk")).IsValid()));
+	}
+
+	TEST_METHOD(Base_DefinesThePanelMotion_AndDuskInheritsIt)
+	{
+		FSlaterStyleLibrary Library;
+		TArray<FSlaterError> Errors;
+		ASSERT_THAT(IsTrue(Library.LoadPluginStyles(Errors)));
+		FSlaterStyleStack Dusk;
+		ASSERT_THAT(IsTrue(Library.BuildStack(TEXT("Dusk"), Dusk)));
+		FSlaterMotion Motion;
+		ASSERT_THAT(IsTrue(Dusk.FindMotion(TEXT("UI.Motion.Panel"), Motion)));
+		ASSERT_THAT(IsTrue(Motion.Duration == 0.1f));
+		ASSERT_THAT(AreEqual(Motion.Ease, FName(TEXT("CubicOut"))));
 	}
 
 	TEST_METHOD(Dusk_RecolorsBase_AndKeepsItsMetrics)

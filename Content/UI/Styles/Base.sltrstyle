@@ -17,16 +17,26 @@
 	<color name="UI.Color.MenuText" value="#E6E8EC"/>
 	<color name="UI.Color.MenuMuted" value="#9AA1AD"/>
 	<color name="UI.Color.Clear" value="#00000000"/>
+	<!-- Cards, inset panels and bars (T-408): flat panels with an outline; Card.Hover swaps the outline to the accent. -->
+	<color name="UI.Color.Card" value="#FFFFFF"/>
+	<color name="UI.Color.Card.Hover" value="#F7F9FC"/>
+	<color name="UI.Color.CardLine" value="#D5DAE1"/>
+	<color name="UI.Color.Inset" value="#F2F3F5"/>
+	<color name="UI.Color.Track" value="#E1E5EB"/>
 
 	<metric name="UI.Space.S" value="4"/>
 	<metric name="UI.Space.M" value="8"/>
 	<metric name="UI.Space.L" value="16"/>
 	<metric name="UI.Radius.M" value="4"/>
+	<metric name="UI.Radius.Card" value="6"/>
 	<metric name="UI.Border.Thin" value="1"/>
 
 	<font name="UI.Font.Body" role="Regular" size="14"/>
 	<font name="UI.Font.Heading" role="Bold" size="20"/>
 	<font name="UI.Font.Caption" role="Italic" size="11"/>
+
+	<!-- Motion: how long a transition takes and its ease (T-404). Panel is the sidebar and other slide-open panels. -->
+	<motion name="UI.Motion.Panel" duration="0.1" ease="CubicOut"/>
 
 	<surface name="UI.Surface.Background" fill="UI.Color.Background"/>
 	<surface name="UI.Surface.Panel" fill="UI.Color.Panel" border="UI.Color.Border" border-width="UI.Border.Thin" radius="UI.Radius.M"/>
@@ -38,4 +48,9 @@
 	<surface name="UI.Surface.MenuItem.Hover" fill="UI.Color.Menu.Hover" radius="UI.Radius.M"/>
 	<surface name="UI.Surface.Divider" fill="UI.Color.MenuLine"/>
 	<surface name="UI.Surface.Scrim" fill="UI.Color.Clear"/>
+	<surface name="UI.Surface.Card" fill="UI.Color.Card" border="UI.Color.CardLine" border-width="UI.Border.Thin" radius="UI.Radius.Card"/>
+	<surface name="UI.Surface.Card.Hover" fill="UI.Color.Card.Hover" border="UI.Color.Accent" border-width="UI.Border.Thin" radius="UI.Radius.Card"/>
+	<surface name="UI.Surface.Inset" fill="UI.Color.Inset" border="UI.Color.CardLine" border-width="UI.Border.Thin" radius="UI.Radius.M"/>
+	<surface name="UI.Surface.Track" fill="UI.Color.Track" radius="UI.Radius.M"/>
+	<surface name="UI.Surface.Fill" fill="UI.Color.Accent" radius="UI.Radius.M"/>
 </style>

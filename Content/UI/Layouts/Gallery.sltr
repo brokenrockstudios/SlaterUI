@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!-- The plain Button is interactive: move the mouse over it and press to try its states. Every surface state and text style the stock style defines, for review. The stock style defines no disabled surface, so that button falls back to the plain button. -->
+<!-- The plain Button is interactive: move the mouse over it and press to try its states. The Shapes row shows chamfered surfaces (T-413). Every surface state and text style the stock style defines, for review. The stock style defines no disabled surface, so that button falls back to the plain button. -->
 <surface role="UI.Surface.Background" inset="UI.Space.L" width="640">
 	<vbox>
 		<text font="UI.Font.Heading" margin="UI.Space.M">Surface states</text>
@@ -23,6 +23,15 @@
 			</surface>
 			<surface role="UI.Surface.Button" state="disabled" inset="UI.Space.M" width="140" margin="UI.Space.S">
 				<text color="#FFFFFF">Disabled</text>
+			</surface>
+		</hbox>
+		<text font="UI.Font.Heading" margin="UI.Space.M">Shapes</text>
+		<hbox margin="UI.Space.S">
+			<surface id="ChamferCard" role="UI.Surface.Panel" shape="chamfer" cut-tl="16" cut-br="16" inset="UI.Space.M" width="200" margin="UI.Space.S">
+				<text>Chamfered card</text>
+			</surface>
+			<surface role="UI.Surface.Button" shape="chamfer" cut="8" interactive="true" inset="UI.Space.M" width="180" margin="UI.Space.S">
+				<text color="#FFFFFF">Chamfered button</text>
 			</surface>
 		</hbox>
 		<text font="UI.Font.Heading" margin="UI.Space.M">Text styles</text>

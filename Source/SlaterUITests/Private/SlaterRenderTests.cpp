@@ -272,6 +272,65 @@ bool FSlaterRenderSidebarTest::RunTest(const FString&)
 }
 
 /**
+ * Renders the account dashboard sample in Skyline to Saved/SlaterUI/Render/Account_Skyline.png for review (T-408). Icons need a real
+ * RHI, so under -nullrhi this skips. The pixel check: the page corner is Skyline's navy background.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlaterRenderAccountTest, "BRS.SlaterUI.Render.Account", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSlaterRenderAccountTest::RunTest(const FString&)
+{
+	if (GUsingNullRHI)
+	{
+		AddInfo(TEXT("Skipped: requires a real RHI (run with -WithRHI)."));
+		return true;
+	}
+	if (!FSlateApplication::IsInitialized() || !FSlateApplication::Get().GetRenderer())
+	{
+		AddInfo(TEXT("Skipped: no Slate renderer in this run."));
+		return true;
+	}
+
+	IFileManager::Get().MakeDirectory(*RenderDir(), true);
+	Slater::SetImageSource(Slater::MakePluginIconSource());
+	FWidgetRenderer Renderer(false);
+	const TSharedRef<SSlaterView> View = SNew(SSlaterView).LayoutId(TEXT("Account")).StyleName(TEXT("Skyline")).UseMockContext(true);
+	if (TestFalse(TEXT("Account builds"), View->HasErrors()))
+	{
+		UTextureRenderTarget2D* Target = nullptr;
+		// Pass 0 queues the icons for rasterizing and measures wrapped text, the window ticks rasterize, pass 1 draws the result.
+		for (int32 Pass = 0; Pass < 2; ++Pass)
+		{
+			View->SlatePrepass(1.f);
+			const FVector2D Size = FVector2D(FMath::CeilToInt(View->GetDesiredSize().X), FMath::CeilToInt(View->GetDesiredSize().Y));
+			Target = Renderer.DrawWidget(View, Size);
+			FlushRenderingCommands();
+			if (Pass == 0)
+			{
+				RdShowInWindow(View);
+			}
+		}
+		TArray<FColor> Pixels;
+		FTextureRenderTargetResource* Resource = Target ? Target->GameThread_GetRenderTargetResource() : nullptr;
+		if (TestTrue(TEXT("Pixels read back"), Resource && Resource->ReadPixels(Pixels)) && TestEqual(TEXT("Pixel count"), Pixels.Num(), Target->SizeX * Target->SizeY))
+		{
+			for (FColor& Pixel : Pixels)
+			{
+				const FColor Encoded = FLinearColor(Pixel.R / 255.f, Pixel.G / 255.f, Pixel.B / 255.f).ToFColorSRGB();
+				Pixel = FColor(Encoded.R, Encoded.G, Encoded.B, 255);
+			}
+			TestTrue(TEXT("Page corner is the Skyline background"), RdClose(Pixels[2 * Target->SizeX + 2], FColor(11, 22, 36), 12));
+			TArray64<uint8> Png;
+			FImageUtils::PNGCompressImageArray(Target->SizeX, Target->SizeY, TArrayView64<const FColor>(Pixels.GetData(), Pixels.Num()), Png);
+			const FString File = RenderDir() / TEXT("Account_Skyline.png");
+			TestTrue(*FString::Printf(TEXT("%s written"), *File), FFileHelper::SaveArrayToFile(Png, *File));
+			AddInfo(FString::Printf(TEXT("%s (%d x %d)"), *File, Target->SizeX, Target->SizeY));
+		}
+	}
+	Slater::SetImageSource(nullptr);
+	return true;
+}
+
+/**
  * Renders the popup menu sample closed, open and with the submenu open to Saved/SlaterUI/Render/ContextMenu_<state>.png for review
  * (T-415). Icons need a real RHI, so under -nullrhi this skips. The pixel check: the open menu changes the picture.
  */

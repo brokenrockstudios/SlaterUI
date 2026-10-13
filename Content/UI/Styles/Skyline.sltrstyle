@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<!-- A navy and teal style for the account dashboard sample (T-408): recolors Base and gives the card colors of `Account.sltr` their navy values (the card surfaces themselves are in Base).
+     Card hover is the outline in the accent color (an instant swap in v1; the fade is T-410). -->
+<style name="Skyline" extends="Base">
+	<color name="UI.Color.Background" value="#0B1624"/>
+	<color name="UI.Color.Panel" value="#0E1B2E"/>
+	<color name="UI.Color.Border" value="#1E3350"/>
+	<color name="UI.Color.Text" value="#E8EEF6"/>
+	<color name="UI.Color.TextMuted" value="#8FA3BA"/>
+	<color name="UI.Color.Accent" value="#2DD4BF"/>
+	<color name="UI.Color.Accent.Hover" value="#5EEAD4"/>
+	<color name="UI.Color.Accent.Pressed" value="#14B8A6"/>
+
+	<color name="UI.Color.Card" value="#112239"/>
+	<color name="UI.Color.Card.Hover" value="#152A47"/>
+	<color name="UI.Color.CardLine" value="#1E3350"/>
+	<color name="UI.Color.Inset" value="#0C1829"/>
+	<color name="UI.Color.Track" value="#1B2D45"/>
+</style>
