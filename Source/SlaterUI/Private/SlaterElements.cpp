@@ -83,6 +83,8 @@ struct FSlaterCompiledTemplate::FNode
 	FName IdName;
 	TArray<TSharedRef<const FSlaterBindingSpec>> Bindings;
 	bool bNeedsBox = false;
+	/** `width-by` / `height-by`, resolved (T-405); the box is set per instance. */
+	TArray<FSlaterStateSize> SizeBy;
 	/** Kept only for a template; the same order as the node's children. */
 	TArray<TSharedRef<FNode>> Children;
 };
@@ -105,6 +107,10 @@ namespace
 	const FName AttrVisible(TEXT("visible"));
 	const FName AttrEnabled(TEXT("enabled"));
 	const FName AttrVisibleWhen(TEXT("visible-when"));
+	const FName AttrWidthBy(TEXT("width-by"));
+	const FName AttrHeightBy(TEXT("height-by"));
+	const FName AttrClip(TEXT("clip"));
+	const FName AttrTransition(TEXT("transition"));
 	const FName AttrFill(TEXT("fill"));
 	const FName AttrMargin(TEXT("margin"));
 	const FName AttrHAlign(TEXT("halign"));
@@ -276,6 +282,28 @@ namespace
 		return Desc;
 	}
 
+	FSlaterAttrDesc MakeTransitionAttr()
+	{
+		FSlaterAttrDesc Desc = MakeAttr(TEXT("transition"), ESlaterAttrType::Text);
+		Desc.CheckText = [](const FString& Text)
+		{
+			return Slater::IsValidTokenName(Text) ? FString() : FString::Printf(TEXT("'%s' is not a motion token name: write a dotted name such as UI.Motion.Panel"), *Text);
+		};
+		return Desc;
+	}
+
+	FSlaterAttrDesc MakeSizeByAttr(const TCHAR* Name)
+	{
+		FSlaterAttrDesc Desc = MakeAttr(Name, ESlaterAttrType::Text);
+		Desc.CheckText = [Name](const FString& Text)
+		{
+			FString Key;
+			TArray<Slater::FSizeByCase> Cases;
+			return Slater::ParseSizeBy(Text, Name, Key, Cases);
+		};
+		return Desc;
+	}
+
 	FSlaterBindTarget EnabledBind()
 	{
 		FSlaterBindTarget Target;
@@ -379,7 +407,7 @@ namespace
 		case ESlaterTokenKind::Metric: bFound = Style.FindMetric(Token, OutValue.Number); break;
 		case ESlaterTokenKind::Font: bFound = Style.FindFont(Token, OutValue.Font); break;
 		case ESlaterTokenKind::Surface: bFound = Style.FindSurface(Token, OutValue.Surface); break;
-		case ESlaterTokenKind::Motion: break; // no attribute type takes a motion token yet (T-405, T-406)
+		case ESlaterTokenKind::Motion: break; // `transition` looks its motion up itself (it has no value type)
 		}
 		if (!bFound)
 		{
@@ -501,6 +529,8 @@ namespace
 		FName& IdName = Resolved->IdName;
 		TSet<FName> BoundNames;
 		FString BoundPathForText;
+		FSlaterMotion TransitionMotion;
+		bool bHasTransition = false;
 
 		if ((Desc->bTemplateChildren || Desc->TemplateSlots.Num() > 0) && TemplateDepth > 0)
 		{
@@ -582,6 +612,62 @@ namespace
 				Error(Attr.Pos, TEXT("'visible-when' is not supported inside a template yet: each item would need its own wiring to the view's state; put it on an element outside the repeat"));
 				continue;
 			}
+			if (AttrName == AttrWidthBy || AttrName == AttrHeightBy)
+			{
+				if (TemplateDepth > 0)
+				{
+					Error(Attr.Pos, FString::Printf(TEXT("'%s' is not supported inside a template yet: each item would need its own wiring to the view's state; put it on an element outside the repeat"), *Attr.Name));
+					continue;
+				}
+				FString SizeKey;
+				TArray<Slater::FSizeByCase> Cases;
+				Slater::ParseSizeBy(Value.Text, *Attr.Name, SizeKey, Cases);
+				FSlaterStateSize Size;
+				Size.Key = FName(*SizeKey);
+				Size.bHeight = AttrName == AttrHeightBy;
+				bool bCasesOk = true;
+				for (const Slater::FSizeByCase& Case : Cases)
+				{
+					FSlaterAttribute MetricAttr = Attr;
+					MetricAttr.Value = Case.Metric;
+					FSlaterValue Metric;
+					Metric.Type = ESlaterAttrType::Metric;
+					if (!ParseMetric(MetricAttr, Metric))
+					{
+						bCasesOk = false;
+					}
+					else if (Metric.Number < 0.f)
+					{
+						Error(Attr.Pos, FString::Printf(TEXT("'%s' must not be negative (value '%s')"), *Attr.Name, *Case.Value));
+						bCasesOk = false;
+					}
+					else
+					{
+						Size.Values.Add(Case.Value);
+						Size.Sizes.Add(Metric.Number);
+					}
+				}
+				if (bCasesOk)
+				{
+					Resolved->SizeBy.Add(MoveTemp(Size));
+				}
+				continue;
+			}
+			if (AttrName == AttrTransition)
+			{
+				if (TemplateDepth > 0)
+				{
+					Error(Attr.Pos, TEXT("'transition' is not supported inside a template yet: it animates a state-driven size, which needs the view's state; put it on an element outside the repeat"));
+					continue;
+				}
+				if (!Style.FindMotion(FName(*Attr.Value), TransitionMotion))
+				{
+					Error(Attr.Pos, FString::Printf(TEXT("unknown motion token '%s'%s"), *Attr.Value, *Slater::DidYouMean(Style, ESlaterTokenKind::Motion, Attr.Value)));
+					continue;
+				}
+				bHasTransition = true;
+				continue;
+			}
 			if (AttrName == AttrFill && Value.Number <= 0.f)
 			{
 				Error(Attr.Pos, TEXT("'fill' is a weight and must be above 0; remove it, or use a weight such as 1"));
@@ -614,6 +700,29 @@ namespace
 		if (Resolved->Values.Contains(AttrVisibleWhen) && (Resolved->Values.Contains(AttrVisible) || BoundNames.Contains(AttrVisible)))
 		{
 			Error(Node.FindAttribute(AttrVisibleWhen.ToString())->Pos, TEXT("'visible-when' and 'visible' on one element would fight over its visibility; use one of them"));
+		}
+
+		if (bHasTransition)
+		{
+			if (!Node.FindAttribute(AttrWidthBy.ToString()) && !Node.FindAttribute(AttrHeightBy.ToString()))
+			{
+				Error(Node.FindAttribute(AttrTransition.ToString())->Pos, TEXT("'transition' has nothing to animate here: it moves a state-driven size, so add width-by or height-by to the same element"));
+			}
+			for (FSlaterStateSize& Size : Resolved->SizeBy)
+			{
+				Size.bAnimate = true;
+				Size.Motion = TransitionMotion;
+			}
+		}
+
+		for (const FSlaterStateSize& Size : Resolved->SizeBy)
+		{
+			const FName Fixed = Size.bHeight ? AttrHeight : AttrWidth;
+			if (Resolved->Values.Contains(Fixed))
+			{
+				const FName By = Size.bHeight ? AttrHeightBy : AttrWidthBy;
+				Error(Node.FindAttribute(By.ToString())->Pos, FString::Printf(TEXT("'%s' and '%s' on one element would fight over its size; use one of them"), *By.ToString(), *Fixed.ToString()));
+			}
 		}
 
 		for (const FSlaterAttrDesc& D : Desc->Attributes)
@@ -827,6 +936,29 @@ namespace
 			Widget = Box;
 		}
 
+		// `width-by` / `height-by` size one box around the element (and its padding box); the view resizes it when the state changes.
+		if (Resolved.SizeBy.Num() > 0)
+		{
+			const TSharedRef<SBox> StateBox = SNew(SBox)[Widget.ToSharedRef()];
+			for (const FSlaterStateSize& Size : Resolved.SizeBy)
+			{
+				FSlaterStateSize& Entry = Out.StateSizes.Add_GetRef(Size);
+				Entry.Box = StateBox;
+				if (Entry.bAnimate)
+				{
+					Entry.Anim = MakeShared<FSlaterAnimator>();
+				}
+			}
+			Widget = StateBox;
+		}
+		if (const FSlaterValue* Clip = Resolved.Values.Find(AttrClip))
+		{
+			if (Clip->bBool)
+			{
+				Widget->SetClipping(EWidgetClipping::ClipToBounds);
+			}
+		}
+
 		// `visible` and `enabled` belong to the outermost widget, so a collapsed element takes its sizing box with it.
 		const FSlaterValue* LiteralVisible = Resolved.Values.Find(AttrVisible);
 		const FSlaterValue* LiteralEnabled = Resolved.Values.Find(AttrEnabled);
@@ -903,6 +1035,10 @@ namespace Slater
 			WithBind(MakeAttr(TEXT("visible"), ESlaterAttrType::Bool), VisibleBind()),
 			WithBind(MakeAttr(TEXT("enabled"), ESlaterAttrType::Bool), EnabledBind()),
 			MakeVisibleWhenAttr(),
+			MakeSizeByAttr(TEXT("width-by")),
+			MakeSizeByAttr(TEXT("height-by")),
+			MakeTransitionAttr(),
+			MakeAttr(TEXT("clip"), ESlaterAttrType::Bool),
 		};
 		return Attributes;
 	}
@@ -1126,6 +1262,11 @@ namespace Slater
 				const FSlaterStateDecl* Decl = Out.States.FindByPredicate([&](const FSlaterStateDecl& State) { return State.Name == Condition.Key; });
 				SetShown(*Target, Decl && Decl->Default.Equals(Condition.Value, ESearchCase::CaseSensitive));
 			}
+		}
+		for (const FSlaterStateSize& Size : Out.StateSizes)
+		{
+			const FSlaterStateDecl* Decl = Out.States.FindByPredicate([&](const FSlaterStateDecl& State) { return State.Name == Size.Key; });
+			ApplyStateSize(Size, Decl ? &Decl->Default : nullptr);
 		}
 		auto Warn = [&](const FString& Message)
 		{

@@ -27,6 +27,8 @@
 	<metric name="UI.Space.S" value="4"/>
 	<metric name="UI.Space.M" value="8"/>
 	<metric name="UI.Space.L" value="16"/>
+	<metric name="UI.Size.SidebarOpen" value="220"/>
+	<metric name="UI.Size.SidebarRail" value="60"/>
 	<metric name="UI.Radius.M" value="4"/>
 	<metric name="UI.Radius.Card" value="6"/>
 	<metric name="UI.Border.Thin" value="1"/>

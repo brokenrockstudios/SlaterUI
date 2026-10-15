@@ -168,6 +168,15 @@ public:
 	bool SetState(FName Key, const FString& Value);
 	const TMap<FName, FString>& GetStates() const { return State; }
 
+	/**
+	 * Moves the `transition`s that are playing on by DeltaTime seconds (T-406). A view with a running transition registers an
+	 * active timer that calls this every frame and stops itself when nothing moves, so an idle screen costs nothing; a test
+	 * calls it by hand as a manual clock. True while something is still moving.
+	 */
+	bool AdvanceMotion(float DeltaTime);
+	/** A transition is playing. */
+	bool IsMoving() const;
+
 	/** The binder of the tree on screen (its `GetBindings()` lists the layout's bindings), or null with no context. */
 	const FSlaterBinder* GetBinder() const { return Binder.Get(); }
 
@@ -195,12 +204,17 @@ private:
 	TMap<FName, TSharedPtr<SWidget>> OutletContent;
 	FSlaterCommandTable Commands;
 	TMap<FName, FString> State;
+	/** The active timer that feeds `AdvanceMotion` is registered; it unregisters itself when nothing moves. */
+	bool bMotionTimerRunning = false;
 
 	/** Loads the layout against InStack, binds it to the context, and checks every path. False with the errors in OutErrors. */
 	bool TryBuild(const TSharedRef<FSlaterStyleStack>& InStack, FGeneration& OutBuilt, TArray<FSlaterError>& OutErrors) const;
 	/** Makes a good build the one on screen. */
 	void Install(const TSharedRef<FSlaterStyleStack>& InStack, FGeneration&& Built);
-	void ApplyStateConditions();
+	/** bAnimate false snaps every size (a build, a reload, a restyle); true lets a `transition` play. */
+	void ApplyStateConditions(bool bAnimate);
+	void EnsureMotionTimer();
+	EActiveTimerReturnType TickMotion(double CurrentTime, float DeltaTime);
 	void DetachOutlets();
 	void ApplyOutlets();
 

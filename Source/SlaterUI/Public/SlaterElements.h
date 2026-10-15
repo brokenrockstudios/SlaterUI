@@ -247,7 +247,7 @@ namespace Slater
 	/** Shows the widget (as it was built) or collapses it, the way `visible` and `visible-when` do. */
 	SLATERUI_API void SetShown(SWidget& Widget, bool bShown);
 
-	/** Attributes every element takes: `id width height min-width min-height max-width max-height padding visible enabled visible-when`. `visible` and `enabled` may be bound; `visible-when="key=value"` follows a view's `<state>` (T-353). */
+	/** Attributes every element takes: `id width height min-width min-height max-width max-height padding visible enabled visible-when width-by height-by clip`. `visible` and `enabled` may be bound; `visible-when="key=value"` follows a view's `<state>` (T-353); `width-by` / `height-by` size the element by a state (T-405); `clip="true"` cuts what overflows it. */
 	SLATERUI_API const TArray<FSlaterAttrDesc>& CommonAttributes();
 
 	/** Attributes a child can carry for its parent's slot: `fill margin halign valign`. */
@@ -303,6 +303,8 @@ struct SLATERUI_API FSlaterBuildResult
 	TArray<FSlaterStateDecl> States;
 	/** Elements with `visible-when`, for the view to show or collapse when a state changes. */
 	TArray<FSlaterStateCondition> StateConditions;
+	/** Elements with `width-by` / `height-by` (T-405), for the view to resize when a state changes. */
+	TArray<FSlaterStateSize> StateSizes;
 
 	bool Succeeded() const { return Errors.Num() == 0 && Root.IsValid(); }
 };

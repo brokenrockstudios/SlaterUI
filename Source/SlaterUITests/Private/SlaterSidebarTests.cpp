@@ -75,10 +75,13 @@ TEST_CLASS(SlaterSidebarTests, "BRS.SlaterUI.Sidebar")
 		return Images.Num();
 	}
 
+	/** Clicks the hamburger and lets the panel's `transition` (T-406) finish, so a test reads the end state. */
 	bool ClickHamburger(const TSharedRef<SSlaterView>& View) const
 	{
 		const TSharedPtr<SSlaterSurface> Surface = StaticCastSharedPtr<SSlaterSurface>(View->FindById(TEXT("Hamburger")));
-		return Surface.IsValid() && Surface->Activate();
+		const bool bClicked = Surface.IsValid() && Surface->Activate();
+		View->AdvanceMotion(10.f);
+		return bClicked;
 	}
 
 	TEST_METHOD(TheShippedLayout_BuildsWithEveryIconInTheSource)
@@ -125,6 +128,24 @@ TEST_CLASS(SlaterSidebarTests, "BRS.SlaterUI.Sidebar")
 
 		ASSERT_THAT(IsTrue(ClickHamburger(View)));
 		ASSERT_THAT(IsTrue(FMath::IsNearlyEqual(DesiredWidth(View), Wide)));
+	}
+
+	TEST_METHOD(TheHamburger_AnimatesThePanelWidth_ThroughTheManualClock)
+	{
+		const TSharedRef<SSlaterView> View = MakeView();
+		const float Wide = DesiredWidth(View);
+		const TSharedPtr<SSlaterSurface> Surface = StaticCastSharedPtr<SSlaterSurface>(View->FindById(TEXT("Hamburger")));
+		ASSERT_THAT(IsTrue(Surface.IsValid() && Surface->Activate()));
+		ASSERT_THAT(IsTrue(View->IsMoving()));
+		View->AdvanceMotion(0.05f);
+		const float Mid = DesiredWidth(View);
+		View->AdvanceMotion(1.f);
+		const float Rail = DesiredWidth(View);
+		// Part of the way: narrower than open, still wider than the finished rail.
+		ASSERT_THAT(IsTrue(Mid < Wide));
+		ASSERT_THAT(IsTrue(Mid > Rail + 1.f));
+		ASSERT_THAT(IsTrue(Rail < 80.f));
+		ASSERT_THAT(IsFalse(View->IsMoving()));
 	}
 
 	TEST_METHOD(Collapsing_HidesLabelsTitleAndLogo_KeepsIcons)

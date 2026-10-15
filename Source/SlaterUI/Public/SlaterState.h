@@ -4,8 +4,11 @@
 
 #include "CoreMinimal.h"
 #include "SlaterMarkup.h"
+#include "SlaterMotion.h"
+#include "SlaterStyle.h"
 
 class SWidget;
+class SBox;
 
 /** A `<state name="tab" default="gear"/>` declared as a direct child of a layout's root: a view-local text value (T-353). */
 struct FSlaterStateDecl
@@ -23,8 +26,44 @@ struct FSlaterStateCondition
 	FString Value;
 };
 
+/** An element with `width-by="expanded: true=240, false=UI.Size.Rail"` (or `height-by`): the size of its sizing box follows the state `Key` (T-405). */
+struct FSlaterStateSize
+{
+	TWeakPtr<SBox> Box;
+	FName Key;
+	bool bHeight = false;
+	/** One entry per written case: the state value and the resolved size. Same length. */
+	TArray<FString> Values;
+	TArray<float> Sizes;
+	/** `transition="UI.Motion.Panel"` (T-406): the size moves instead of jumping. Needs `Anim`. */
+	bool bAnimate = false;
+	FSlaterMotion Motion;
+	/** Made per built instance; shared by the copies of this struct. Null unless `bAnimate`. */
+	TSharedPtr<FSlaterAnimator> Anim;
+};
+
 namespace Slater
 {
+	/** One case of a `width-by` / `height-by`: a state value and the metric text (a number or a metric token) written for it. */
+	struct FSizeByCase
+	{
+		FString Value;
+		FString Metric;
+	};
+
+	/** Splits `key: value=metric, value=metric`. Returns what is wrong with the text, or empty (and fills the outputs) when it is fine. */
+	SLATERUI_API FString ParseSizeBy(const FString& Text, const TCHAR* AttributeName, FString& OutKey, TArray<FSizeByCase>& OutCases);
+
+	/**
+	 * Sets the box's width or height for the state's current value (null: the state is unknown); a value with no case gives the box back its content size.
+	 * With bAnimate and a `transition` the size moves there from where it is (and `Slater.MotionScale` 0 makes it jump); the first apply, a value with no case
+	 * on either side, and bAnimate false all snap. The view then feeds time through `AdvanceStateSize`.
+	 */
+	SLATERUI_API void ApplyStateSize(const FSlaterStateSize& Size, const FString* StateValue, bool bAnimate = false);
+
+	/** Moves the size's animator on by DeltaTime and writes the box. True while it is still moving. */
+	SLATERUI_API bool AdvanceStateSize(const FSlaterStateSize& Size, float DeltaTime);
+
 	/** A state name: letters, digits and `_`, not starting with a digit. */
 	SLATERUI_API bool IsValidStateName(const FString& Name);
 

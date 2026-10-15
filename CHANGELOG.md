@@ -2,6 +2,18 @@
 
 Version format `YYMM.DDRR` (year, month, day, revision of that day). Newest first. Keep entries to one line where possible.
 
+## 2610.1502
+
+- Test fix (T-492): `SizeBy.ClipCutsTheElementToItsBox_AndIsOffByDefault` asserts "not `ClipToBounds`" for an element without `clip` and with `clip="false"` (it expected `Inherit`, but `STextBlock` defaults to `OnDemand` on 5.8). No runtime change.
+
+## 2610.1501
+
+- `transition="UI.Motion.Panel"` (T-406) on an element with `width-by` / `height-by`: the size moves to the new state's size over the motion token's duration and ease, continues from where it is on a mid-flight toggle, and snaps on first apply, reload and restyle. New `FSlaterAnimator` (pure, manual clock), `Slater::EaseFromWord`, console variable `Slater.MotionScale` (0 = instant), `SSlaterView::AdvanceMotion` / `IsMoving` with an active timer that runs only while something moves. `Sidebar.sltr` now animates. Tests `BRS.SlaterUI.Motion.*`.
+
+## 2610.1401
+
+- `width-by` / `height-by` (state-driven size, instant) and `clip` on any element (T-405): `Slater::ParseSizeBy`, `Slater::ApplyStateSize`, `FSlaterStateSize`, `FSlaterBuildResult::StateSizes`; state names checked like `visible-when`. `Sidebar.sltr` moves from the spacer trick to `width-by`; Base gains `UI.Size.SidebarOpen` and `UI.Size.SidebarRail`. Tests `BRS.SlaterUI.SizeBy.*`.
+
 ## 2610.1304
 
 - `shape="chamfer"` on `surface` (T-413) with `cut` and `cut-tl`/`cut-tr`/`cut-br`/`cut-bl`: fill polygon and anti-aliased outline painted in `SSlaterSurface::OnPaint`, no material; `FSlaterChamfer`, `Slater::MakeChamferPath`, `SetChamfer`. Gallery gains a "Shapes" row. Tests `BRS.SlaterUI.Chamfer.*`, `Render.Chamfer`, `Render.ChamferGallery` (need `-WithRHI`).

@@ -439,11 +439,20 @@ void SSlaterView::Install(const TSharedRef<FSlaterStyleStack>& InStack, FGenerat
 		NewState.Add(Decl.Name, Old ? *Old : Decl.Default);
 	}
 	State = MoveTemp(NewState);
-	ApplyStateConditions();
+	// A new tree never animates into its first look: it snaps to the state it opens in.
+	ApplyStateConditions(false);
 }
 
-void SSlaterView::ApplyStateConditions()
+void SSlaterView::ApplyStateConditions(bool bAnimate)
 {
+	for (const FSlaterStateSize& Size : Result.StateSizes)
+	{
+		Slater::ApplyStateSize(Size, State.Find(Size.Key), bAnimate);
+	}
+	if (bAnimate)
+	{
+		EnsureMotionTimer();
+	}
 	for (const FSlaterStateCondition& Condition : Result.StateConditions)
 	{
 		if (const TSharedPtr<SWidget> Target = Condition.Widget.Pin())
@@ -476,9 +485,44 @@ bool SSlaterView::SetState(FName Key, const FString& Value)
 	if (!Current->Equals(Value, ESearchCase::CaseSensitive))
 	{
 		*Current = Value;
-		ApplyStateConditions();
+		ApplyStateConditions(true);
 	}
 	return true;
+}
+
+bool SSlaterView::IsMoving() const
+{
+	return Result.StateSizes.ContainsByPredicate([](const FSlaterStateSize& Size) { return Size.Anim.IsValid() && Size.Anim->IsActive(); });
+}
+
+bool SSlaterView::AdvanceMotion(float DeltaTime)
+{
+	bool bMoving = false;
+	for (const FSlaterStateSize& Size : Result.StateSizes)
+	{
+		bMoving |= Slater::AdvanceStateSize(Size, DeltaTime);
+	}
+	return bMoving;
+}
+
+void SSlaterView::EnsureMotionTimer()
+{
+	if (!IsMoving() || bMotionTimerRunning)
+	{
+		return;
+	}
+	bMotionTimerRunning = true;
+	RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateSP(this, &SSlaterView::TickMotion));
+}
+
+EActiveTimerReturnType SSlaterView::TickMotion(double /*CurrentTime*/, float DeltaTime)
+{
+	if (AdvanceMotion(DeltaTime))
+	{
+		return EActiveTimerReturnType::Continue;
+	}
+	bMotionTimerRunning = false;
+	return EActiveTimerReturnType::Stop;
 }
 
 void SSlaterView::DetachOutlets()

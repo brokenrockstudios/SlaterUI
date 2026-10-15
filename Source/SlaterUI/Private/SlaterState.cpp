@@ -3,6 +3,7 @@
 #include "SlaterState.h"
 
 #include "SlaterCommands.h"
+#include "Widgets/Layout/SBox.h"
 
 namespace
 {
@@ -12,6 +13,8 @@ namespace
 	const TCHAR* const LeaveSetStateAttr = TEXT("leave-set-state");
 	const TCHAR* const VisibleWhenAttr = TEXT("visible-when");
 	const TCHAR* const OnClickAttr = TEXT("on-click");
+	const TCHAR* const WidthByAttr = TEXT("width-by");
+	const TCHAR* const HeightByAttr = TEXT("height-by");
 
 	void AddError(TArray<FSlaterError>& Errors, const FString& Path, const FSlaterPos& Pos, const FString& Message)
 	{
@@ -59,6 +62,14 @@ namespace
 			{
 				// The shape is the attribute's own check; here only the name matters.
 				if (Slater::ParseStatePair(Attr.Value, Key, Value))
+				{
+					CheckKey(Key, Attr.Pos, Path, States, Errors);
+				}
+			}
+			else if (Attr.Name.Equals(WidthByAttr, ESearchCase::CaseSensitive) || Attr.Name.Equals(HeightByAttr, ESearchCase::CaseSensitive))
+			{
+				TArray<Slater::FSizeByCase> Cases;
+				if (Slater::ParseSizeBy(Attr.Value, *Attr.Name, Key, Cases).IsEmpty())
 				{
 					CheckKey(Key, Attr.Pos, Path, States, Errors);
 				}
@@ -136,6 +147,119 @@ FString Slater::CheckStatePair(const FString& Text, const TCHAR* AttributeName)
 		return FString();
 	}
 	return FString::Printf(TEXT("'%s' is not a state test for %s: write one name, '=' and one value, like tab=gear (letters, digits and '_' in the name; letters, digits and '_', '.', '-' in the value)"), *Text, AttributeName);
+}
+
+FString Slater::ParseSizeBy(const FString& Text, const TCHAR* AttributeName, FString& OutKey, TArray<FSizeByCase>& OutCases)
+{
+	const FString Shape = FString::Printf(TEXT("'%s' is not a state-driven size for %s: write the state name, ':', then comma-separated value=size cases, like expanded: true=240, false=UI.Size.Rail"), *Text, AttributeName);
+	FString KeyText, CaseText;
+	if (!Text.Split(TEXT(":"), &KeyText, &CaseText))
+	{
+		return Shape;
+	}
+	KeyText.TrimStartAndEndInline();
+	if (!IsValidStateName(KeyText))
+	{
+		return Shape;
+	}
+	TArray<FString> Parts;
+	CaseText.ParseIntoArray(Parts, TEXT(","), false);
+	TArray<FSizeByCase> Cases;
+	for (const FString& Part : Parts)
+	{
+		FSizeByCase Case;
+		if (!Part.Split(TEXT("="), &Case.Value, &Case.Metric))
+		{
+			return Shape;
+		}
+		Case.Value.TrimStartAndEndInline();
+		Case.Metric.TrimStartAndEndInline();
+		if (!IsValidStateValue(Case.Value) || Case.Metric.IsEmpty())
+		{
+			return Shape;
+		}
+		if (Cases.ContainsByPredicate([&](const FSizeByCase& Other) { return Other.Value.Equals(Case.Value, ESearchCase::CaseSensitive); }))
+		{
+			return FString::Printf(TEXT("the value '%s' appears twice in %s; each state value gets one size"), *Case.Value, AttributeName);
+		}
+		Cases.Add(MoveTemp(Case));
+	}
+	if (Cases.Num() == 0)
+	{
+		return Shape;
+	}
+	OutKey = MoveTemp(KeyText);
+	OutCases = MoveTemp(Cases);
+	return FString();
+}
+
+namespace
+{
+	void WriteSize(const FSlaterStateSize& Size, const FOptionalSize& Value)
+	{
+		const TSharedPtr<SBox> Box = Size.Box.Pin();
+		if (!Box.IsValid())
+		{
+			return;
+		}
+		if (Size.bHeight)
+		{
+			Box->SetHeightOverride(Value);
+		}
+		else
+		{
+			Box->SetWidthOverride(Value);
+		}
+	}
+}
+
+void Slater::ApplyStateSize(const FSlaterStateSize& Size, const FString* StateValue, bool bAnimate)
+{
+	if (!Size.Box.IsValid())
+	{
+		return;
+	}
+	int32 Index = INDEX_NONE;
+	if (StateValue)
+	{
+		Index = Size.Values.IndexOfByPredicate([&](const FString& Value) { return Value.Equals(*StateValue, ESearchCase::CaseSensitive); });
+	}
+	if (Index == INDEX_NONE)
+	{
+		// No case: back to the content size, and nothing to move from next time.
+		if (Size.Anim.IsValid())
+		{
+			Size.Anim->Reset();
+		}
+		WriteSize(Size, FOptionalSize());
+		return;
+	}
+	const float Target = Size.Sizes[Index];
+	if (Size.bAnimate && Size.Anim.IsValid())
+	{
+		ECurveEaseFunction Ease = ECurveEaseFunction::Linear;
+		Slater::EaseFromWord(Size.Motion.Ease, Ease);
+		const float Duration = bAnimate ? Size.Motion.Duration * Slater::GetMotionScale() : 0.f;
+		if (Size.Anim->HasValue() && Size.Anim->GetTarget() == Target)
+		{
+			return;
+		}
+		Size.Anim->Start(Target, Duration, Ease);
+		WriteSize(Size, FOptionalSize(Size.Anim->GetValue()));
+		return;
+	}
+	WriteSize(Size, FOptionalSize(Target));
+}
+
+bool Slater::AdvanceStateSize(const FSlaterStateSize& Size, float DeltaTime)
+{
+	if (!Size.Anim.IsValid() || !Size.Anim->IsActive())
+	{
+		return false;
+	}
+	const bool bMoving = Size.Anim->Advance(DeltaTime);
+	WriteSize(Size, FOptionalSize(Size.Anim->GetValue()));
+	return bMoving;
 }
 
 void Slater::ExtractStates(FSlaterNode& Root, const FString& Path, TArray<FSlaterStateDecl>& OutStates, TArray<FSlaterError>& OutErrors)
