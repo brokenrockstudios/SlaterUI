@@ -10,12 +10,15 @@ class SWidget;
 /**
  * What a command handler is told: which command, the widget that fired it, and the one word written after a colon
  * (`on-click="Inventory.Use:Sword"` gives Name `Inventory.Use` and Argument `Sword`; empty when there is none).
+ * A command named by an element event (`on-change="Audio.SetVolume"`, T-381) also gets the control's new value.
  */
 struct FSlaterCommandCall
 {
 	FName Name;
 	TSharedPtr<SWidget> Source;
 	FString Argument;
+	/** The value an element event carries, as text (`0.25`, `true`, the committed text); empty for a click. */
+	FString Value;
 };
 
 using FSlaterCommandHandler = TFunction<void(const FSlaterCommandCall&)>;

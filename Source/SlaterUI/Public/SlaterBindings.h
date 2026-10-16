@@ -6,6 +6,8 @@
 #include "SlaterElements.h"
 #include "SlaterScope.h"
 
+class FSlaterEventSink;
+
 /** How a binding reaches its widget. */
 enum class ESlaterBindMode : uint8
 {
@@ -26,6 +28,8 @@ struct SLATERUI_API FSlaterListStats
 	int32 Applies = 0;
 	/** Polled getter evaluations. */
 	int32 PolledReads = 0;
+	/** Values a control's event wrote to the data (T-381). An event whose value the data already holds writes nothing. */
+	int32 Writes = 0;
 
 	void Reset() { *this = FSlaterListStats(); }
 };
@@ -59,6 +63,14 @@ public:
 	/** Applies the current value and starts following it. A value the scope cannot read yet leaves the widget as built. */
 	void Add(const FSlaterBoundAttr& Bound);
 
+	/**
+	 * Gives a control's event sink the writer for its `{Path}` events (T-381): the value goes to the scope's setter unless the
+	 * data already holds it, then every binding of this set on that path is applied again, so a setter that clamped or
+	 * refused the value (and broadcast nothing because its field did not change) still puts the control back. The writer
+	 * stops working when the set goes.
+	 */
+	void AddEvent(const FSlaterBoundEvent& Bound);
+
 	/** Text for the stale report: the layout the bindings came from. */
 	void SetLabel(FName InLabel) { Label = InLabel; }
 
@@ -74,6 +86,8 @@ private:
 	struct FEntry
 	{
 		FSlaterBoundAttr Bound;
+		/** The widget's event sink when it is a control, so a write into it is not taken for the user's change. */
+		TSharedPtr<FSlaterEventSink> Sink;
 		/** The last text read from the scope for this binding. */
 		FString Applied;
 		bool bApplied = false;
@@ -88,7 +102,10 @@ private:
 	/** Every live set is on one list (no allocation per set), for the stale-binding report. */
 	FSlaterBindingSet* PrevLive = nullptr;
 	FSlaterBindingSet* NextLive = nullptr;
+	/** Writers handed to event sinks hold this weakly: a sink that outlives the set writes nothing. */
+	TSharedRef<bool> Alive = MakeShared<bool>(true);
 
 	void Refresh(int32 Index);
+	void WriteBack(const FSlaterEventSpec& Spec, const FString& Value);
 	void Write(FEntry& Entry, const FString& Text);
 };

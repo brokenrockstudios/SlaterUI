@@ -249,7 +249,10 @@ TEST_CLASS(SlaterElementErrorTests, "BRS.SlaterUI.Elements.Error")
 
 	TEST_METHOD(UnknownTag_WithNothingNear_ListsTheKnownOnes)
 	{
-		const FSlaterBuildResult Result = ElBuild(TEXT("<zzzzzzzz/>"));
+		// The layout elements only: the list of the stock registry grows with every element.
+		FSlaterElementRegistry Registry;
+		Slater::RegisterLayoutElements(Registry);
+		const FSlaterBuildResult Result = ElBuild(TEXT("<zzzzzzzz/>"), Registry);
 		ASSERT_THAT(AreEqual(ElCheckError(Result, 1, 1, TEXT("known: box, hbox")), FString()));
 		ASSERT_THAT(IsFalse(Result.Errors[0].Message.Contains(TEXT("did you mean"))));
 	}

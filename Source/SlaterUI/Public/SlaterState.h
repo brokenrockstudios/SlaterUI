@@ -24,6 +24,8 @@ struct FSlaterStateCondition
 	TWeakPtr<SWidget> Widget;
 	FName Key;
 	FString Value;
+	/** True for a `popup` with `open-when`: the widget is the popup, which opens while the state matches instead of being shown. */
+	bool bPopup = false;
 };
 
 /** An element with `width-by="expanded: true=240, false=UI.Size.Rail"` (or `height-by`): the size of its sizing box follows the state `Key` (T-405). */

@@ -63,6 +63,7 @@ Spacing and colors take either a style token or an inline value, so `margin="UI.
 - Live reload of layouts and styles, with an in-editor preview tab and a `Slater.Layout <Id>` console command
 - Data binding with `{Path}`, through UObject view models (FieldNotification) or plain C++ getters, with list binding via `repeat`
 - Build-time checks of tokens and binding paths, with "did you mean" errors and line numbers
+- Two-way bindings: `slider`, `checkbox` and `textbox` controls whose `on-change` / `on-commit` write back to the view model through its setters
 - Commands (`on-click`), view state (`<state>`, `set-state`, `visible-when`) and stock commands like `ui.close`, `ui.push`, `ui.toggle`
 - Templates (`<template>`, `<import>`) for reusable pieces
 - Live mouse states: hover and pressed looks on interactive surfaces
@@ -74,7 +75,6 @@ Spacing and colors take either a style token or an inline value, so `margin="UI.
 - Popup and context menus
 - Collapsible sidebar and animated transitions
 - Hover reveal effects and more stock elements (`meter`, `rule`)
-- Two-way bindings and input events for sliders, checkboxes and text boxes
 - Text formatting and converters in bindings, with localization
 - Editor tooling: an XSD and catalog for VS Code completion, and asset pickers in the preview tab
 - Per-item state inside `repeat`, a "selected" look driven by view state

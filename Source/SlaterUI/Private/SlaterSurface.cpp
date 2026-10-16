@@ -3,6 +3,7 @@
 #include "SlaterSurface.h"
 
 #include "SlaterCommands.h"
+#include "SlaterEvents.h"
 #include "SlaterView.h"
 
 #include "Framework/Application/SlateApplication.h"
@@ -245,14 +246,8 @@ void SSlaterSurface::OnMouseLeave(const FPointerEvent& MouseEvent)
 
 TSharedPtr<SSlaterView> SSlaterSurface::FindView() const
 {
-	for (TSharedPtr<SWidget> Parent = GetParentWidget(); Parent.IsValid(); Parent = Parent->GetParentWidget())
-	{
-		if (Parent->GetType() == FName(TEXT("SSlaterView")))
-		{
-			return StaticCastSharedPtr<SSlaterView>(Parent);
-		}
-	}
-	return nullptr;
+	// Also finds the view from inside a popup's menu (T-439), which the engine's menu stack parents elsewhere.
+	return Slater::FindOwningView(*this);
 }
 
 void SSlaterSurface::ApplyPointerState(FName Key, const FString& Value, const TCHAR* Attribute) const
@@ -303,13 +298,9 @@ void SSlaterSurface::SetStateChange(FName InKey, const FString& InValue)
 	}
 }
 
-bool SSlaterSurface::Activate()
+bool Slater::ActivateAction(const TSharedRef<SWidget>& Source, FName StateKey, const FString& StateValue, FName Command, const FString& CommandArgument)
 {
-	if (!HasAction() || !IsEnabled())
-	{
-		return false;
-	}
-	const TSharedPtr<SSlaterView> View = FindView();
+	const TSharedPtr<SSlaterView> View = Slater::FindOwningView(*Source);
 	bool bOk = true;
 	if (!StateKey.IsNone())
 	{
@@ -325,12 +316,20 @@ bool SSlaterSurface::Activate()
 	}
 	if (!Command.IsNone())
 	{
-		// The command may rebuild the tree this surface is in, so nothing of the surface is touched after it runs.
-		const FSlaterCommandCall Call{Command, AsShared(), CommandArgument};
+		const FSlaterCommandCall Call{Command, Source, CommandArgument};
 		const bool bRan = View.IsValid() ? View->RunCommand(Call) : Slater::RunCommand(Slater::Commands(), Call);
 		bOk = bOk && bRan;
 	}
 	return bOk;
+}
+
+bool SSlaterSurface::Activate()
+{
+	if (!HasAction() || !IsEnabled())
+	{
+		return false;
+	}
+	return Slater::ActivateAction(AsShared(), StateKey, StateValue, Command, CommandArgument);
 }
 
 FReply SSlaterSurface::OnMouseButtonDown(const FGeometry& MyGeometry, const FPointerEvent& MouseEvent)

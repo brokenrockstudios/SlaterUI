@@ -23,6 +23,9 @@
 	<color name="UI.Color.CardLine" value="#D5DAE1"/>
 	<color name="UI.Color.Inset" value="#F2F3F5"/>
 	<color name="UI.Color.Track" value="#E1E5EB"/>
+	<!-- Stock controls (T-514): the field behind a checkbox or text box and its outline. -->
+	<color name="UI.Color.Control" value="#FFFFFF"/>
+	<color name="UI.Color.ControlLine" value="#8C93A0"/>
 
 	<metric name="UI.Space.S" value="4"/>
 	<metric name="UI.Space.M" value="8"/>
@@ -32,6 +35,7 @@
 	<metric name="UI.Radius.M" value="4"/>
 	<metric name="UI.Radius.Card" value="6"/>
 	<metric name="UI.Border.Thin" value="1"/>
+	<metric name="UI.Radius.Round" value="8"/>
 
 	<font name="UI.Font.Body" role="Regular" size="14"/>
 	<font name="UI.Font.Heading" role="Bold" size="20"/>
@@ -45,6 +49,7 @@
 	<surface name="UI.Surface.Button" fill="UI.Color.Accent" radius="UI.Radius.M"/>
 	<surface name="UI.Surface.Button.Hover" fill="UI.Color.Accent.Hover" radius="UI.Radius.M"/>
 	<surface name="UI.Surface.Button.Pressed" fill="UI.Color.Accent.Pressed" radius="UI.Radius.M"/>
+	<surface name="UI.Surface.Button.Focused" fill="UI.Color.Accent.Hover" border="UI.Color.Text" border-width="UI.Border.Thin" radius="UI.Radius.M"/>
 	<surface name="UI.Surface.Menu" fill="UI.Color.Menu" border="UI.Color.MenuLine" border-width="UI.Border.Thin" radius="UI.Radius.M"/>
 	<surface name="UI.Surface.MenuItem" fill="UI.Color.Clear" radius="UI.Radius.M"/>
 	<surface name="UI.Surface.MenuItem.Hover" fill="UI.Color.Menu.Hover" radius="UI.Radius.M"/>
@@ -55,4 +60,15 @@
 	<surface name="UI.Surface.Inset" fill="UI.Color.Inset" border="UI.Color.CardLine" border-width="UI.Border.Thin" radius="UI.Radius.M"/>
 	<surface name="UI.Surface.Track" fill="UI.Color.Track" radius="UI.Radius.M"/>
 	<surface name="UI.Surface.Fill" fill="UI.Color.Accent" radius="UI.Radius.M"/>
+	<!-- Stock controls (T-514): the slider bar and thumb, the checkbox box and the text box. -->
+	<surface name="UI.Surface.Slider.Bar" fill="UI.Color.Track" radius="UI.Radius.M"/>
+	<surface name="UI.Surface.Slider.Thumb" fill="UI.Color.Accent" radius="UI.Radius.Round"/>
+	<surface name="UI.Surface.Slider.Thumb.Hover" fill="UI.Color.Accent.Hover" radius="UI.Radius.Round"/>
+	<surface name="UI.Surface.CheckBox" fill="UI.Color.Control" border="UI.Color.ControlLine" border-width="UI.Border.Thin" radius="UI.Radius.M"/>
+	<surface name="UI.Surface.CheckBox.Hover" fill="UI.Color.Control" border="UI.Color.Accent" border-width="UI.Border.Thin" radius="UI.Radius.M"/>
+	<surface name="UI.Surface.CheckBox.Checked" fill="UI.Color.Accent" border="UI.Color.Accent" border-width="UI.Border.Thin" radius="UI.Radius.M"/>
+	<surface name="UI.Surface.CheckBox.Checked.Hover" fill="UI.Color.Accent.Hover" border="UI.Color.Accent.Hover" border-width="UI.Border.Thin" radius="UI.Radius.M"/>
+	<surface name="UI.Surface.TextBox" fill="UI.Color.Control" border="UI.Color.ControlLine" border-width="UI.Border.Thin" radius="UI.Radius.M"/>
+	<surface name="UI.Surface.TextBox.Hover" fill="UI.Color.Control" border="UI.Color.Accent.Hover" border-width="UI.Border.Thin" radius="UI.Radius.M"/>
+	<surface name="UI.Surface.TextBox.Focused" fill="UI.Color.Control" border="UI.Color.Accent" border-width="UI.Border.Thin" radius="UI.Radius.M"/>
 </style>

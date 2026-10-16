@@ -136,6 +136,140 @@ namespace
 		return CastField<FObjectPropertyBase>(Array->Inner);
 	}
 
+	/**
+	 * How a control writes a field (T-381), the engine's MVVM destination rules (`UE::MVVM::BindingHelper::IsValidForDestinationBinding`)
+	 * minus what needs editor metadata: a setter function (`Name` or `SetName`, one parameter, no return, not const), else the
+	 * property itself when it has a native `Setter` or is BlueprintReadWrite.
+	 */
+	struct FWriteTarget
+	{
+		UFunction* Function = nullptr;
+		FProperty* Property = nullptr;
+		/** The function's parameter, or the property: the type the text is converted to. */
+		const FProperty* Value = nullptr;
+	};
+
+	bool IsSetterFunction(const UFunction* Function)
+	{
+		return Function && Function->NumParms == 1 && !Function->GetReturnProperty() && !Function->HasAnyFunctionFlags(FUNC_Const | FUNC_BlueprintPure);
+	}
+
+	const FProperty* FirstParameter(const UFunction* Function)
+	{
+		for (TFieldIterator<FProperty> It(Function); It && It->HasAnyPropertyFlags(CPF_Parm); ++It)
+		{
+			return *It;
+		}
+		return nullptr;
+	}
+
+	/** Text, numbers, true/false, names and enums are what a control's value can become. Empty when the type is one of them, else its C++ type. */
+	FString UnwritableType(const FProperty* Property)
+	{
+		if (CastField<FBoolProperty>(Property) || CastField<FStrProperty>(Property) || CastField<FNameProperty>(Property) || CastField<FTextProperty>(Property)
+			|| CastField<FEnumProperty>(Property) || CastField<FNumericProperty>(Property))
+		{
+			return FString();
+		}
+		return Property ? Property->GetCPPType() : FString(TEXT("nothing"));
+	}
+
+	FString Suggestion(UObject* Object, const FString& Wanted);
+
+	bool FindWriteTarget(UObject* Object, FName Name, FWriteTarget& Out, FString& OutWhy)
+	{
+		const UClass* Class = Object->GetClass();
+		for (const FName Candidate : {Name, FName(*(TEXT("Set") + Name.ToString()))})
+		{
+			UFunction* Function = Class->FindFunctionByName(Candidate);
+			if (IsSetterFunction(Function))
+			{
+				Out.Function = Function;
+				Out.Value = FirstParameter(Function);
+				break;
+			}
+		}
+		FProperty* Property = Class->FindPropertyByName(Name);
+		if (!Out.Function && Property && Property->ArrayDim == 1)
+		{
+			const bool bReadWrite = Property->HasAnyPropertyFlags(CPF_BlueprintVisible) && !Property->HasAnyPropertyFlags(CPF_BlueprintReadOnly | CPF_EditConst);
+			if (Property->HasSetter() || bReadWrite)
+			{
+				Out.Property = Property;
+				Out.Value = Property;
+			}
+		}
+		if (!Out.Value)
+		{
+			if (!FindMember(Class, Name).IsValid())
+			{
+				OutWhy = FString::Printf(TEXT("'%s' is not a field of %s%s"), *Name.ToString(), *Class->GetName(), *Suggestion(Object, Name.ToString()));
+			}
+			else
+			{
+				OutWhy = FString::Printf(TEXT("'%s' of %s has no setter: add a UFUNCTION Set%s taking the value (the view-model convention; it broadcasts the change), give the property a native Setter, or make it BlueprintReadWrite"),
+					*Name.ToString(), *Class->GetName(), *Name.ToString());
+			}
+			return false;
+		}
+		const FString Type = UnwritableType(Out.Value);
+		if (!Type.IsEmpty())
+		{
+			OutWhy = FString::Printf(TEXT("'%s' of %s is a %s; a control writes text, a number, true/false, a name or an enum"), *Name.ToString(), *Class->GetName(), *Type);
+			return false;
+		}
+		return true;
+	}
+
+	/** Text into a value of the property's type; false when it does not convert (`abc` into a float). */
+	bool ImportValue(const FProperty* Property, void* Value, const FString& Text)
+	{
+		if (const FBoolProperty* Bool = CastField<FBoolProperty>(Property))
+		{
+			if (Text != TEXT("true") && Text != TEXT("false"))
+			{
+				return false;
+			}
+			Bool->SetPropertyValue(Value, Text == TEXT("true"));
+			return true;
+		}
+		if (const FStrProperty* String = CastField<FStrProperty>(Property))
+		{
+			String->SetPropertyValue(Value, Text);
+			return true;
+		}
+		if (const FNameProperty* Name = CastField<FNameProperty>(Property))
+		{
+			Name->SetPropertyValue(Value, FName(*Text));
+			return true;
+		}
+		if (const FTextProperty* TextProperty = CastField<FTextProperty>(Property))
+		{
+			TextProperty->SetPropertyValue(Value, FText::FromString(Text));
+			return true;
+		}
+		const FNumericProperty* Numeric = CastField<FNumericProperty>(Property);
+		if (CastField<FEnumProperty>(Property) || (Numeric && Numeric->IsEnum()))
+		{
+			// An enum takes its value name (`Hard`), as the property's own text import does.
+			return Property->ImportText_Direct(*Text, Value, nullptr, PPF_None) != nullptr;
+		}
+		double Number = 0.0;
+		if (!Numeric || !LexTryParseString(Number, *Text))
+		{
+			return false;
+		}
+		if (Numeric->IsFloatingPoint())
+		{
+			Numeric->SetFloatingPointPropertyValue(Value, Number);
+		}
+		else
+		{
+			Numeric->SetIntPropertyValue(Value, static_cast<int64>(FMath::RoundToDouble(Number)));
+		}
+		return true;
+	}
+
 	void SplitPath(const FString& Path, TArray<FString>& OutSegments)
 	{
 		Path.ParseIntoArray(OutSegments, TEXT("."), false);
@@ -248,10 +382,117 @@ namespace
 		virtual TSharedPtr<ISlaterListSource> FindList(const FString& Path, const FString& KeyField) override;
 		virtual TUniquePtr<ISlaterSubscription> Subscribe(const FString& Path, TFunction<void()> OnChange) override;
 
+		virtual bool CheckWrite(const FString& Path, FString& OutWhy) const override
+		{
+			// The links on the way are read like any path; only the last segment needs a setter.
+			FString Owner, Last;
+			SplitLast(Path, Owner, Last);
+			if (!Owner.IsEmpty() && !Check(Owner, false, OutWhy))
+			{
+				return false;
+			}
+			if (!Object.IsValid())
+			{
+				OutWhy = TEXT("the view model is gone");
+				return false;
+			}
+			UObject* Target = Owner.IsEmpty() ? Object.Get() : ResolveObject(Owner);
+			if (!Target)
+			{
+				// Empty right now: the setter cannot be checked until the link is set.
+				return true;
+			}
+			FWriteTarget Unused;
+			return FindWriteTarget(Target, FName(*Last), Unused, OutWhy);
+		}
+
+		virtual bool Write(const FString& Path, const FString& Text) override
+		{
+			FString Owner, Last;
+			SplitLast(Path, Owner, Last);
+			UObject* Target = Owner.IsEmpty() ? Object.Get() : ResolveObject(Owner);
+			FWriteTarget Writer;
+			FString Why;
+			if (!Target || !FindWriteTarget(Target, FName(*Last), Writer, Why))
+			{
+				return false;
+			}
+			if (Writer.Function)
+			{
+				TArray<uint8, TInlineAllocator<64>> Buffer;
+				Buffer.SetNumZeroed(Writer.Function->ParmsSize);
+				Writer.Value->InitializeValue_InContainer(Buffer.GetData());
+				const bool bOk = ImportValue(Writer.Value, Writer.Value->ContainerPtrToValuePtr<void>(Buffer.GetData()), Text);
+				if (bOk)
+				{
+					Target->ProcessEvent(Writer.Function, Buffer.GetData());
+				}
+				Writer.Value->DestroyValue_InContainer(Buffer.GetData());
+				return bOk;
+			}
+			FProperty* Property = Writer.Property;
+			if (Property->HasSetter())
+			{
+				// The native setter takes a whole value: build it apart, then hand it over.
+				void* Temp = FMemory::Malloc(Property->GetSize(), Property->GetMinAlignment());
+				Property->InitializeValue(Temp);
+				const bool bOk = ImportValue(Property, Temp, Text);
+				if (bOk)
+				{
+					Property->SetValue_InContainer(Target, Temp);
+				}
+				Property->DestroyValue(Temp);
+				FMemory::Free(Temp);
+				return bOk;
+			}
+			if (!ImportValue(Property, Property->ContainerPtrToValuePtr<void>(Target), Text))
+			{
+				return false;
+			}
+			// A BlueprintReadWrite property was written directly and nothing of the view model ran, so tell the other bindings as its setter would.
+			if (INotifyFieldValueChanged* Notifier = AsNotifier(Target))
+			{
+				const FFieldId Field = FindField(Target, Property->GetFName());
+				if (Field.IsValid())
+				{
+					Notifier->BroadcastFieldValueChanged(Field);
+				}
+			}
+			return true;
+		}
+
 		UObject* GetObject() const { return Object.Get(); }
 
 	private:
 		TWeakObjectPtr<UObject> Object;
+
+		static void SplitLast(const FString& Path, FString& OutOwner, FString& OutLast)
+		{
+			if (!Path.Split(TEXT("."), &OutOwner, &OutLast, ESearchCase::CaseSensitive, ESearchDir::FromEnd))
+			{
+				OutOwner.Reset();
+				OutLast = Path;
+			}
+		}
+
+		/** The object at a path of links (`Player`), or null when a link on the way is empty or not an object. */
+		UObject* ResolveObject(const FString& Path) const
+		{
+			TArray<FString> Segments;
+			SplitPath(Path, Segments);
+			UObject* Current = Object.Get();
+			for (int32 I = 0; Current && I < Segments.Num(); ++I)
+			{
+				const FMember Member = FindMember(Current->GetClass(), FName(*Segments[I]));
+				UObject* Next = nullptr;
+				if (Member.IsValid())
+				{
+					ReadMember(Current, Member, nullptr, &Next);
+				}
+				Current = Next;
+			}
+			return Current;
+		}
 	};
 
 	/** Follows `A.B.C`: a delegate on each object along the way, moved when a link is replaced. */

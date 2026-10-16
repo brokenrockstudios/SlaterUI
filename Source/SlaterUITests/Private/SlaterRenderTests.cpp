@@ -331,6 +331,61 @@ bool FSlaterRenderAccountTest::RunTest(const FString&)
 }
 
 /**
+ * Renders the controls sample (T-381) in Base and Dusk to Saved/SlaterUI/Render/Settings_<Style>.png for review: the slider,
+ * checkbox and text box draw with the engine's core style, so this is where a clash with a SlaterUI style shows.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlaterRenderSettingsTest, "BRS.SlaterUI.Render.Settings", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSlaterRenderSettingsTest::RunTest(const FString&)
+{
+	if (GUsingNullRHI)
+	{
+		AddInfo(TEXT("Skipped: requires a real RHI (run with -WithRHI)."));
+		return true;
+	}
+	if (!FSlateApplication::IsInitialized() || !FSlateApplication::Get().GetRenderer())
+	{
+		AddInfo(TEXT("Skipped: no Slate renderer in this run."));
+		return true;
+	}
+
+	IFileManager::Get().MakeDirectory(*RenderDir(), true);
+	FWidgetRenderer Renderer(false);
+	for (const TCHAR* Style : {TEXT("Base"), TEXT("Dusk")})
+	{
+		const TSharedRef<SSlaterView> View = SNew(SSlaterView).LayoutId(TEXT("Settings")).StyleName(Style).UseMockContext(true);
+		if (!TestFalse(*FString::Printf(TEXT("Settings builds in %s"), Style), View->HasErrors()))
+		{
+			continue;
+		}
+		UTextureRenderTarget2D* Target = nullptr;
+		for (int32 Pass = 0; Pass < 2; ++Pass)
+		{
+			View->SlatePrepass(1.f);
+			const FVector2D Size = FVector2D(FMath::CeilToInt(View->GetDesiredSize().X), FMath::CeilToInt(View->GetDesiredSize().Y));
+			Target = Renderer.DrawWidget(View, Size);
+			FlushRenderingCommands();
+		}
+		TArray<FColor> Pixels;
+		FTextureRenderTargetResource* Resource = Target ? Target->GameThread_GetRenderTargetResource() : nullptr;
+		if (TestTrue(TEXT("Pixels read back"), Resource && Resource->ReadPixels(Pixels)) && TestEqual(TEXT("Pixel count"), Pixels.Num(), Target->SizeX * Target->SizeY))
+		{
+			for (FColor& Pixel : Pixels)
+			{
+				const FColor Encoded = FLinearColor(Pixel.R / 255.f, Pixel.G / 255.f, Pixel.B / 255.f).ToFColorSRGB();
+				Pixel = FColor(Encoded.R, Encoded.G, Encoded.B, 255);
+			}
+			TArray64<uint8> Png;
+			FImageUtils::PNGCompressImageArray(Target->SizeX, Target->SizeY, TArrayView64<const FColor>(Pixels.GetData(), Pixels.Num()), Png);
+			const FString File = RenderDir() / FString::Printf(TEXT("Settings_%s.png"), Style);
+			TestTrue(*FString::Printf(TEXT("%s written"), *File), FFileHelper::SaveArrayToFile(Png, *File));
+			AddInfo(FString::Printf(TEXT("%s (%d x %d)"), *File, Target->SizeX, Target->SizeY));
+		}
+	}
+	return true;
+}
+
+/**
  * Renders the popup menu sample closed, open and with the submenu open to Saved/SlaterUI/Render/ContextMenu_<state>.png for review
  * (T-415). Icons need a real RHI, so under -nullrhi this skips. The pixel check: the open menu changes the picture.
  */

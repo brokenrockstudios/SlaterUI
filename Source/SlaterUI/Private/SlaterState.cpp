@@ -12,7 +12,10 @@ namespace
 	const TCHAR* const HoverSetStateAttr = TEXT("hover-set-state");
 	const TCHAR* const LeaveSetStateAttr = TEXT("leave-set-state");
 	const TCHAR* const VisibleWhenAttr = TEXT("visible-when");
+	const TCHAR* const OpenWhenAttr = TEXT("open-when");
+	const TCHAR* const CloseStateAttr = TEXT("close-state");
 	const TCHAR* const OnClickAttr = TEXT("on-click");
+	const TCHAR* const EventAttrPrefix = TEXT("on-");
 	const TCHAR* const WidthByAttr = TEXT("width-by");
 	const TCHAR* const HeightByAttr = TEXT("height-by");
 
@@ -58,7 +61,8 @@ namespace
 		{
 			FString Key, Value;
 			if (Attr.Name.Equals(SetStateAttr, ESearchCase::CaseSensitive) || Attr.Name.Equals(VisibleWhenAttr, ESearchCase::CaseSensitive)
-				|| Attr.Name.Equals(HoverSetStateAttr, ESearchCase::CaseSensitive) || Attr.Name.Equals(LeaveSetStateAttr, ESearchCase::CaseSensitive))
+				|| Attr.Name.Equals(HoverSetStateAttr, ESearchCase::CaseSensitive) || Attr.Name.Equals(LeaveSetStateAttr, ESearchCase::CaseSensitive)
+				|| Attr.Name.Equals(OpenWhenAttr, ESearchCase::CaseSensitive) || Attr.Name.Equals(CloseStateAttr, ESearchCase::CaseSensitive))
 			{
 				// The shape is the attribute's own check; here only the name matters.
 				if (Slater::ParseStatePair(Attr.Value, Key, Value))
@@ -74,8 +78,9 @@ namespace
 					CheckKey(Key, Attr.Pos, Path, States, Errors);
 				}
 			}
-			else if (Attr.Name.Equals(OnClickAttr, ESearchCase::CaseSensitive))
+			else if (Attr.Name.Equals(OnClickAttr, ESearchCase::CaseSensitive) || Attr.Name.StartsWith(EventAttrPrefix, ESearchCase::CaseSensitive))
 			{
+				// `on-click`, and an element event (`on-change`, `on-commit`) naming a stock command.
 				FString Name, Argument;
 				Slater::SplitCommandText(Attr.Value, Name, Argument);
 				if (Name.Equals(TEXT("ui.toggle"), ESearchCase::CaseSensitive) && Slater::IsValidStateName(Argument))

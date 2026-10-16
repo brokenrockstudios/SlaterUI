@@ -5,6 +5,7 @@
 #include "SlaterList.h"
 #include "SlaterModel.h"
 #include "SlaterOutlet.h"
+#include "SlaterPopup.h"
 
 #include "HAL/FileManager.h"
 #include "Interfaces/IPluginManager.h"
@@ -458,7 +459,15 @@ void SSlaterView::ApplyStateConditions(bool bAnimate)
 		if (const TSharedPtr<SWidget> Target = Condition.Widget.Pin())
 		{
 			const FString* Value = State.Find(Condition.Key);
-			Slater::SetShown(*Target, Value && Value->Equals(Condition.Value, ESearchCase::CaseSensitive));
+			const bool bMatch = Value && Value->Equals(Condition.Value, ESearchCase::CaseSensitive);
+			if (Condition.bPopup)
+			{
+				StaticCastSharedPtr<SSlaterPopup>(Target)->SetOpenRequested(bMatch);
+			}
+			else
+			{
+				Slater::SetShown(*Target, bMatch);
+			}
 		}
 	}
 }

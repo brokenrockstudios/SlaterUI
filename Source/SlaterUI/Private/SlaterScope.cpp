@@ -93,11 +93,15 @@ namespace
 		int32 Id;
 	};
 
+	/** Writes one field of a mock item through the model, keeping the field's JSON type (a number stays a number). */
+	using FItemWriter = TFunction<bool(const FString& Field, const FString& Text)>;
+
 	/** One item of a mock array: a flat JSON object. */
 	class FModelItemScope : public ISlaterScope
 	{
 	public:
-		explicit FModelItemScope(TSharedPtr<FJsonObject> InData) : Data(MoveTemp(InData)), Table(MakeShared<FSlaterCallbackTable>()) {}
+		explicit FModelItemScope(TSharedPtr<FJsonObject> InData, FItemWriter InWriter = FItemWriter())
+			: Data(MoveTemp(InData)), Table(MakeShared<FSlaterCallbackTable>()), Writer(MoveTemp(InWriter)) {}
 
 		const TSharedPtr<FJsonObject>& GetData() const { return Data; }
 		void Notify(const FString& Field) { Table->Notify(Field); }
@@ -125,9 +129,26 @@ namespace
 			return MakeUnique<FTableSubscription>(Table, Table->Add(Path, MoveTemp(OnChange)));
 		}
 
+		virtual bool CheckWrite(const FString& Path, FString& OutWhy) const override
+		{
+			FString Text;
+			if (Writer && FSlaterModel::ReadField(*Data, Path, Text))
+			{
+				return true;
+			}
+			OutWhy = Writer ? FString::Printf(TEXT("the item has no field '%s'"), *Path) : TEXT("this item cannot be written (it shares its key with another item)");
+			return false;
+		}
+
+		virtual bool Write(const FString& Path, const FString& Text) override
+		{
+			return Writer && Writer(Path, Text);
+		}
+
 	private:
 		TSharedPtr<FJsonObject> Data;
 		TSharedRef<FSlaterCallbackTable> Table;
+		FItemWriter Writer;
 	};
 
 	/** An array of the mock model, one root-level change event routed to the item it names. */
@@ -182,7 +203,7 @@ namespace
 				// A second item with the same key (a loaded file can have one): it gets a scope that no change reaches.
 				return MakeShared<FModelItemScope>(Object);
 			}
-			return Items.Add(Key, MakeShared<FModelItemScope>(Object));
+			return Items.Add(Key, MakeShared<FModelItemScope>(Object, MakeWriter(Key, Object)));
 		}
 
 		virtual TSharedPtr<ISlaterScope> FindItem(const FString& Key) override
@@ -192,7 +213,7 @@ namespace
 				return *Known;
 			}
 			const TSharedPtr<FJsonObject> Object = Model->FindItem(Path, KeyField, Key);
-			return Object.IsValid() ? TSharedPtr<ISlaterScope>(Items.Add(Key, MakeShared<FModelItemScope>(Object))) : nullptr;
+			return Object.IsValid() ? TSharedPtr<ISlaterScope>(Items.Add(Key, MakeShared<FModelItemScope>(Object, MakeWriter(Key, Object)))) : nullptr;
 		}
 
 	private:
@@ -200,6 +221,30 @@ namespace
 		FString Path;
 		FString KeyField;
 		TMap<FString, TSharedRef<FModelItemScope>> Items;
+
+		FItemWriter MakeWriter(const FString& Key, const TSharedPtr<FJsonObject>& Object) const
+		{
+			return [WeakModel = Model.ToWeakPtr(), ArrayPath = Path, Field = KeyField, Key, WeakObject = Object.ToWeakPtr()](const FString& Name, const FString& Text)
+			{
+				const TSharedPtr<FSlaterModel> Pinned = WeakModel.Pin();
+				const TSharedPtr<FJsonObject> Item = WeakObject.Pin();
+				if (!Pinned.IsValid() || !Item.IsValid())
+				{
+					return false;
+				}
+				const TSharedPtr<FJsonValue> Old = Item->TryGetField(Name);
+				if (Old.IsValid() && Old->Type == EJson::Number)
+				{
+					double Number = 0.0;
+					return LexTryParseString(Number, *Text) && Pinned->SetItemNumber(ArrayPath, Field, Key, Name, Number);
+				}
+				if (Old.IsValid() && Old->Type == EJson::Boolean)
+				{
+					return (Text == TEXT("true") || Text == TEXT("false")) && Pinned->SetItemBool(ArrayPath, Field, Key, Name, Text == TEXT("true"));
+				}
+				return Pinned->SetItemString(ArrayPath, Field, Key, Name, Text);
+			};
+		}
 
 		TSharedPtr<FJsonObject> ObjectAt(int32 Index) const
 		{
@@ -288,6 +333,23 @@ namespace
 			return MakeUnique<FTableSubscription>(Table, Table->Add(Path, MoveTemp(OnChange)));
 		}
 
+		virtual bool CheckWrite(const FString& Path, FString& OutWhy) const override
+		{
+			// Mock data takes any value it has; a write keeps it as a string.
+			return Check(Path, false, OutWhy);
+		}
+
+		virtual bool Write(const FString& Path, const FString& Text) override
+		{
+			FString Old;
+			if (!Model->GetString(Path, Old))
+			{
+				return false;
+			}
+			Model->SetValue(Path, Text);
+			return true;
+		}
+
 	private:
 		TSharedRef<FSlaterModel> Model;
 		TSharedRef<FSlaterCallbackTable> Table;
@@ -322,6 +384,11 @@ void FSlaterGetterScope::AddValue(const FString& Path, TFunction<FString()> Gett
 void FSlaterGetterScope::AddList(const FString& Path, TSharedRef<ISlaterListSource> List)
 {
 	Lists.Add(Path, MoveTemp(List));
+}
+
+void FSlaterGetterScope::AddSetter(const FString& Path, TFunction<bool(const FString&)> Setter)
+{
+	Setters.Add(Path, MoveTemp(Setter));
 }
 
 void FSlaterGetterScope::Notify(const FString& Path)
@@ -369,4 +436,34 @@ TSharedPtr<ISlaterListSource> FSlaterGetterScope::FindList(const FString& Path, 
 TUniquePtr<ISlaterSubscription> FSlaterGetterScope::Subscribe(const FString& Path, TFunction<void()> OnChange)
 {
 	return MakeUnique<FTableSubscription>(Table, Table->Add(Path, MoveTemp(OnChange)));
+}
+
+bool FSlaterGetterScope::CheckWrite(const FString& Path, FString& OutWhy) const
+{
+	if (Setters.Contains(Path))
+	{
+		return true;
+	}
+	TArray<FString> Candidates;
+	Setters.GetKeys(Candidates);
+	const FString Nearest = Slater::SuggestNearest(Path, Candidates);
+	OutWhy = FString::Printf(TEXT("no setter for '%s' is registered (AddSetter)%s"), *Path, Nearest.IsEmpty() ? TEXT("") : *FString::Printf(TEXT("; did you mean '%s'?"), *Nearest));
+	return false;
+}
+
+bool FSlaterGetterScope::Write(const FString& Path, const FString& Text)
+{
+	const TFunction<bool(const FString&)>* Setter = Setters.Find(Path);
+	return Setter && (*Setter)(Text);
+}
+
+bool ISlaterScope::CheckWrite(const FString&, FString& OutWhy) const
+{
+	OutWhy = TEXT("this data cannot be written by the UI");
+	return false;
+}
+
+bool ISlaterScope::Write(const FString&, const FString&)
+{
+	return false;
 }

@@ -1,0 +1,105 @@
+<?xml version="1.0"?>
+<!-- The ContextMenu sample (T-415) rebuilt on the `popup` element (T-439): the same rows, ids and commands, instant (no motion). The chevron is the
+     anchor of a popup that follows the state `menu`; the engine's menu stack draws the menu (above the chevron, flipped at the window edge), closes it on a
+     click outside (the click still reaches what is under it) and on Escape, and writes `menu=false` back. So there is no scrim and no hand-placed frame.
+     "Learn more" is the anchor of a second popup placed to the right, following `sub`; hovering a row sets `sub`, and closing the menu closes it (and writes sub=none).
+     The rows set `menu=false` and fire their command in one click, as before. Not here yet: keyboard (Up, Down, Enter on an active row, T-417) and gamepad (T-438).
+     The icons are white strokes, so the menu is dark in every style. -->
+<overlay>
+	<state name="menu" default="false"/>
+	<state name="sub" default="none"/>
+
+	<template name="menu-header" params="label">
+		<text font="UI.Font.Caption" color="UI.Color.MenuMuted" margin="UI.Space.M">$label</text>
+	</template>
+	<template name="menu-sep">
+		<surface role="UI.Surface.Divider" height="1" margin="UI.Space.S"/>
+	</template>
+	<template name="menu-item" params="icon label shortcut cmd">
+		<surface role="UI.Surface.MenuItem" inset="UI.Space.M" set-state="menu=false" on-click="$cmd" hover-set-state="sub=none">
+			<hbox>
+				<image src="$icon" size="16" valign="center"/>
+				<text color="UI.Color.MenuText" fill="1" valign="center" margin="UI.Space.M">$label</text>
+				<text font="UI.Font.Caption" color="UI.Color.MenuMuted" valign="center">$shortcut</text>
+			</hbox>
+		</surface>
+	</template>
+	<template name="menu-plain" params="icon label cmd">
+		<surface role="UI.Surface.MenuItem" inset="UI.Space.M" set-state="menu=false" on-click="$cmd" hover-set-state="sub=none">
+			<hbox>
+				<image src="$icon" size="16" valign="center"/>
+				<text color="UI.Color.MenuText" fill="1" valign="center" margin="UI.Space.M">$label</text>
+			</hbox>
+		</surface>
+	</template>
+	<template name="menu-parent" params="icon label">
+		<surface role="UI.Surface.MenuItem" inset="UI.Space.M" interactive="true" hover-set-state="sub=learn">
+			<hbox>
+				<image src="$icon" size="16" valign="center"/>
+				<text color="UI.Color.MenuText" fill="1" valign="center" margin="UI.Space.M">$label</text>
+				<image src="ChevronRight" size="16" valign="center"/>
+			</hbox>
+		</surface>
+	</template>
+	<template name="menu-link" params="label cmd">
+		<surface role="UI.Surface.MenuItem" inset="UI.Space.M" set-state="menu=false" on-click="$cmd" hover-set-state="sub=learn">
+			<hbox>
+				<text color="UI.Color.MenuText" fill="1" valign="center" margin="UI.Space.S">$label</text>
+				<image src="External" size="14" valign="center"/>
+			</hbox>
+		</surface>
+	</template>
+
+	<surface id="Page" role="UI.Surface.Panel" inset="UI.Space.L" width="560" height="620">
+		<vbox>
+			<text font="UI.Font.Heading">Account</text>
+			<text font="UI.Font.Caption" color="UI.Color.TextMuted" margin="UI.Space.S">The page under the menu. Open it with the chevron at the bottom.</text>
+			<spacer fill="1"/>
+			<surface id="PageAction" role="UI.Surface.Button" inset="UI.Space.M" margin="UI.Space.S" halign="right" on-click="Page.Action">
+				<text color="UI.Color.Panel">A button under the popup</text>
+			</surface>
+			<surface id="Footer" role="UI.Surface.Panel" inset="UI.Space.M" height="56">
+				<hbox>
+					<surface id="Avatar" role="UI.Surface.Button" inset="UI.Space.M" interactive="false" valign="center">
+						<image src="User" size="20"/>
+					</surface>
+					<vbox valign="center" margin="UI.Space.M">
+						<text>You</text>
+						<text font="UI.Font.Caption" color="UI.Color.TextMuted">Pro plan</text>
+					</vbox>
+					<spacer fill="1"/>
+					<!-- First child: the anchor. Second child: the menu. -->
+					<popup id="AccountMenu" placement="above" open-when="menu=true" valign="center">
+						<surface id="Chevron" role="UI.Surface.Button" inset="UI.Space.M" on-click="ui.toggle:menu" hover-set-state="sub=none">
+							<image src="ChevronUp" size="16"/>
+						</surface>
+						<surface id="Menu" role="UI.Surface.Menu" inset="UI.Space.S" width="250">
+							<vbox>
+								<menu-header label="you@example.com"/>
+								<menu-item id="ItemSettings" icon="Settings" label="Settings" shortcut="Ctrl+," cmd="Account.Settings"/>
+								<menu-item id="ItemLanguage" icon="Globe" label="Language" shortcut="Ctrl+L" cmd="Account.Language"/>
+								<menu-item id="ItemHelp" icon="Help" label="Get help" shortcut="F1" cmd="Account.Help"/>
+								<menu-sep/>
+								<menu-plain id="ItemUpgrade" icon="Upgrade" label="Upgrade plan" cmd="Account.Upgrade"/>
+								<menu-plain id="ItemGift" icon="Gift" label="Gift" cmd="Account.Gift"/>
+								<!-- The submenu: a second popup anchored on its own row, opening to the right of it. -->
+								<popup id="LearnMenu" placement="right" open-when="sub=learn" close-state="sub=none">
+									<menu-parent id="ItemLearn" icon="Book" label="Learn more"/>
+									<surface id="Submenu" role="UI.Surface.Menu" inset="UI.Space.S" width="210">
+										<vbox>
+											<menu-link id="LinkTerms" label="Terms and policies" cmd="Account.Terms"/>
+											<menu-link id="LinkPrivacy" label="Privacy policy" cmd="Account.Privacy"/>
+											<menu-link id="LinkUsage" label="Usage policy" cmd="Account.Usage"/>
+										</vbox>
+									</surface>
+								</popup>
+								<menu-sep/>
+								<menu-plain id="ItemLogout" icon="Logout" label="Log out" cmd="Account.Logout"/>
+							</vbox>
+						</surface>
+					</popup>
+				</hbox>
+			</surface>
+		</vbox>
+	</surface>
+</overlay>

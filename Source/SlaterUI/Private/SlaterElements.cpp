@@ -3,6 +3,9 @@
 #include "SlaterElements.h"
 #include "SlaterTemplates.h"
 
+#include "SlaterCombo.h"
+#include "SlaterCommands.h"
+#include "SlaterEvents.h"
 #include "SlaterOutlet.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SNullWidget.h"
@@ -82,6 +85,8 @@ struct FSlaterCompiledTemplate::FNode
 	FSlaterSlotValues Slot;
 	FName IdName;
 	TArray<TSharedRef<const FSlaterBindingSpec>> Bindings;
+	/** Element events (T-381), handed to the widget's event sink per instance. */
+	TArray<TSharedRef<const FSlaterEventSpec>> Events;
 	bool bNeedsBox = false;
 	/** `width-by` / `height-by`, resolved (T-405); the box is set per instance. */
 	TArray<FSlaterStateSize> SizeBy;
@@ -107,6 +112,8 @@ namespace
 	const FName AttrVisible(TEXT("visible"));
 	const FName AttrEnabled(TEXT("enabled"));
 	const FName AttrVisibleWhen(TEXT("visible-when"));
+	const FName AttrOpenWhen(TEXT("open-when"));
+	const FName AttrCloseState(TEXT("close-state"));
 	const FName AttrWidthBy(TEXT("width-by"));
 	const FName AttrHeightBy(TEXT("height-by"));
 	const FName AttrClip(TEXT("clip"));
@@ -576,6 +583,28 @@ namespace
 				continue;
 			}
 
+			if (AttrDesc->bEvent)
+			{
+				// `{Path}` writes the control's value back; anything else must be a command (the attribute's check says so).
+				const FString Problem = AttrDesc->CheckText ? AttrDesc->CheckText(Attr.Value) : FString();
+				if (!Problem.IsEmpty())
+				{
+					Error(Attr.Pos, Problem);
+					continue;
+				}
+				const TSharedRef<FSlaterEventSpec> Event = MakeShared<FSlaterEventSpec>();
+				Event->Event = AttrName;
+				Event->Pos = Attr.Pos;
+				if (!Slater::IsBindingExpr(Attr.Value, &Event->Path))
+				{
+					FString CommandName;
+					Slater::SplitCommandText(Attr.Value, CommandName, Event->Argument);
+					Event->Command = FName(*CommandName);
+				}
+				Resolved->Events.Add(Event);
+				continue;
+			}
+
 			FString BoundPath;
 			if (Slater::IsBindingExpr(Attr.Value, &BoundPath))
 			{
@@ -610,6 +639,11 @@ namespace
 			if (AttrName == AttrVisibleWhen && TemplateDepth > 0)
 			{
 				Error(Attr.Pos, TEXT("'visible-when' is not supported inside a template yet: each item would need its own wiring to the view's state; put it on an element outside the repeat"));
+				continue;
+			}
+			if ((AttrName == AttrOpenWhen || AttrName == AttrCloseState) && TemplateDepth > 0)
+			{
+				Error(Attr.Pos, FString::Printf(TEXT("'%s' is not supported inside a template yet: each item would need its own wiring to the view's state; put the popup outside the repeat, or open it by a click on its anchor"), *Attr.Name));
 				continue;
 			}
 			if (AttrName == AttrWidthBy || AttrName == AttrHeightBy)
@@ -742,6 +776,18 @@ namespace
 		{
 			Error(Node.TextPos, FString::Printf(TEXT("<%s> cannot contain text"), *Node.Tag));
 		}
+		else if (Desc->CheckContent && !Node.Text.IsEmpty() && !Slater::IsBindingExpr(Node.Text))
+		{
+			TArray<FSlaterTextProblem> Problems;
+			Desc->CheckContent(Node.Text, Style, Problems);
+			for (const FSlaterTextProblem& Problem : Problems)
+			{
+				FSlaterPos Pos = Node.TextPos;
+				Pos.Column = Problem.Line == 1 ? Node.TextPos.Column + Problem.Column - 1 : Problem.Column;
+				Pos.Line = Node.TextPos.Line + Problem.Line - 1;
+				Error(Pos, Problem.Message);
+			}
+		}
 		else if (Desc->TextBind.IsSet() && Slater::IsBindingExpr(Node.Text, &BoundPathForText))
 		{
 			const TSharedRef<FSlaterBindingSpec> Bound = MakeShared<FSlaterBindingSpec>();
@@ -756,6 +802,7 @@ namespace
 
 		bool bChildFailed = false;
 		const int32 BindingsBefore = Out.Bindings.Num();
+		const int32 EventsBefore = Out.Events.Num();
 		TSharedPtr<FResolvedNode> TemplateChild;
 		if (Desc->bTemplateChildren)
 		{
@@ -804,11 +851,13 @@ namespace
 				FSlaterSlotValues SlotValues;
 				TSharedPtr<FResolvedNode> SlotResolved;
 				const int32 SlotBindingsBefore = Out.Bindings.Num();
+				const int32 SlotEventsBefore = Out.Events.Num();
 				++TemplateDepth;
 				const TSharedPtr<SWidget> Checked = Build(SlotNode.Children[0], nullptr, SlotValues, &SlotResolved);
 				--TemplateDepth;
 				// Built only to check it; the host makes the instances and their bindings.
 				Out.Bindings.SetNum(SlotBindingsBefore, EAllowShrinking::No);
+				Out.Events.SetNum(SlotEventsBefore, EAllowShrinking::No);
 				if (!Checked.IsValid())
 				{
 					bChildFailed = true;
@@ -871,6 +920,7 @@ namespace
 			--TemplateDepth;
 			// The template was only built to check it; its bindings belong to the instances the element makes later.
 			Out.Bindings.SetNum(BindingsBefore, EAllowShrinking::No);
+			Out.Events.SetNum(EventsBefore, EAllowShrinking::No);
 		}
 
 		if (Out.Errors.Num() != ErrorsBefore || bChildFailed)
@@ -927,6 +977,24 @@ namespace
 		{
 			Out.Repeats.Add(Inner);
 		}
+		if (Resolved.Events.Num() > 0)
+		{
+			// The builder made the control's sink; each instance's sink learns what its event attributes say.
+			const TSharedPtr<FSlaterEventSink> Sink = Slater::FindEventSink(*Inner);
+			if (!Sink.IsValid())
+			{
+				Error(Node.Pos, FString::Printf(TEXT("<%s> declares events but its builder attached no event sink (Slater::AttachEventSink)"), *Node.Tag));
+				return nullptr;
+			}
+			for (const TSharedRef<const FSlaterEventSpec>& Event : Resolved.Events)
+			{
+				Sink->AddSpec(Event);
+				if (Event->IsWrite())
+				{
+					Out.Events.Add({Inner, Event});
+				}
+			}
+		}
 
 		TSharedPtr<SWidget> Widget = Inner;
 		if (!Desc.bAppliesSizing && Resolved.bNeedsBox)
@@ -980,6 +1048,16 @@ namespace
 		if (VisibleWhen && Slater::ParseStatePair(VisibleWhen->Text, WhenKey, WhenValue))
 		{
 			Out.StateConditions.Add({Widget, FName(*WhenKey), WhenValue});
+		}
+		FString OpenKey, OpenValue;
+		if (const FSlaterValue* OpenWhen = Resolved.Values.Find(AttrOpenWhen))
+		{
+			if (Slater::ParseStatePair(OpenWhen->Text, OpenKey, OpenValue))
+			{
+				// The element's own widget (a popup), not its sizing wrapper: the view opens and closes it.
+				FSlaterStateCondition& Condition = Out.StateConditions.Add_GetRef({Inner, FName(*OpenKey), OpenValue});
+				Condition.bPopup = true;
+			}
 		}
 		for (const TSharedRef<const FSlaterBindingSpec>& Spec : Resolved.Bindings)
 		{
@@ -1069,6 +1147,10 @@ namespace Slater
 			RegisterLayoutElements(Registry);
 			RegisterContentElements(Registry);
 			RegisterListElements(Registry);
+			RegisterControlElements(Registry);
+			RegisterPopupElements(Registry);
+			RegisterRichTextElements(Registry);
+			RegisterComboElements(Registry);
 		}
 		return Registry;
 	}
@@ -1189,6 +1271,28 @@ namespace Slater
 		TFunction<void(const FSlaterCompiledTemplate::FNode&)> Walk = [&](const FSlaterCompiledTemplate::FNode& Node)
 		{
 			OutSpecs.Append(Node.Bindings);
+			for (const TSharedRef<FSlaterCompiledTemplate::FNode>& Child : Node.Children)
+			{
+				Walk(*Child);
+			}
+		};
+		if (Template.RootNode.IsValid())
+		{
+			Walk(*Template.RootNode);
+		}
+	}
+
+	void GetTemplateEvents(const FSlaterCompiledTemplate& Template, TArray<TSharedRef<const FSlaterEventSpec>>& OutSpecs)
+	{
+		TFunction<void(const FSlaterCompiledTemplate::FNode&)> Walk = [&](const FSlaterCompiledTemplate::FNode& Node)
+		{
+			for (const TSharedRef<const FSlaterEventSpec>& Event : Node.Events)
+			{
+				if (Event->IsWrite())
+				{
+					OutSpecs.Add(Event);
+				}
+			}
 			for (const TSharedRef<FSlaterCompiledTemplate::FNode>& Child : Node.Children)
 			{
 				Walk(*Child);
@@ -1348,6 +1452,10 @@ bool FSlaterElementRegistry::Register(FSlaterElementDesc Desc, FString* OutError
 		if (Slater::CommonAttributes().ContainsByPredicate([&](const FSlaterAttrDesc& D) { return D.Name == Attr.Name; }) || IsSlotAttr(Attr.Name))
 		{
 			return Fail(FString::Printf(TEXT("<%s>: '%s' is a common or slot attribute and cannot be redeclared"), *Tag, *Name));
+		}
+		if (Attr.bEvent && (Attr.Type != ESlaterAttrType::Text || Attr.Bind.IsSet()))
+		{
+			return Fail(FString::Printf(TEXT("<%s>: event '%s' must be a plain Text attribute (make it with Slater::EventAttribute)"), *Tag, *Name));
 		}
 		if (Attr.Type == ESlaterAttrType::Enum && Attr.EnumValues.Num() == 0)
 		{

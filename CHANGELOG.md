@@ -2,6 +2,22 @@
 
 Version format `YYMM.DDRR` (year, month, day, revision of that day). Newest first. Keep entries to one line where possible.
 
+## 2610.1506
+
+- `popup` element over `SMenuAnchor` (T-439): first child the anchor, second the menu; `placement=above|below|right`, `open-when="key=value"` (opens while the view state matches) and `close-state` (written when the engine closes it; defaults to `key=false` for `open-when="key=true"`), or a plain click on the anchor with the `SComboButton` click rule; `FitInWindow(true)`, no Slate focus on rows, a submenu is a nested popup that closes with its parent. New `SSlaterPopup`, `SSlaterPopupMenu`, `Slater::RegisterPopupElements`, `FSlaterStateCondition::bPopup`; `Slater::FindOwningView` (and the surface's `hover-set-state`) now reaches the view from inside a popup's menu. Sample `Layouts/ContextMenuPopup.sltr` (same rows as `ContextMenu.sltr`). Tests `BRS.SlaterUI.Popup.*`.
+
+## 2610.1505
+
+- Stock controls take their look from the style (T-514): `slider`, `checkbox` and `textbox` fill the engine's `FSliderStyle`, `FCheckBoxStyle` and `FEditableTextBoxStyle` with rounded-box brushes made from surface tokens (`UI.Surface.Slider.Bar` / `.Thumb` / `.Thumb.Hover`, `UI.Surface.CheckBox` / `.Hover` / `.Checked`, `UI.Surface.TextBox` / `.Hover` / `.Focused`) and `UI.Color.Text`; `Base` and `Dusk` gain `UI.Color.Control` / `ControlLine` and `UI.Radius.Round`. `slider` `color` and `track` now replace the fills only when written. New `FSlaterControlLook` / `Slater::FindControlLook` (public `SlaterControls.h`). Tests `BRS.SlaterUI.ControlStyle.*`.
+
+## 2610.1504
+
+- `button` element over `SButton` (T-524): keyboard and gamepad route for a clickable face (focus, navigation, Enter / Space / confirm key), `on-click` and `set-state` like `surface`, looks from `<role>.Hover` / `.Pressed` / `.Focused` / `.Disabled`; new `SSlaterButton`, `ESlaterButtonLook`, `Slater::ActivateAction` (shared with `SSlaterSurface::Activate`), `Base` gains `UI.Surface.Button.Focused`. Tests `BRS.SlaterUI.Button.*`.
+
+## 2610.1503
+
+- Two-way bindings and element events (T-381): stock controls `slider`, `checkbox` and `textbox` over the engine's `SSlider`, `SCheckBox`, `SEditableTextBox`; event attributes `on-change` and `on-commit` write the value to `{Path}` (view-model setter `SetX`, a native `Setter`, or a BlueprintReadWrite property; mock JSON; `FSlaterGetterScope::AddSetter`) or run a command with it (`FSlaterCommandCall::Value`). A path nothing can write fails at load with its line; an echo guard (`FSlaterEventSink`) keeps a write from bouncing back. New `ISlaterScope::CheckWrite` / `Write`, `FSlaterBuildResult::Events`, `Slater::EventAttribute`, `Slater::RegisterControlElements`; sample `Layouts/Settings.sltr`; tests `BRS.SlaterUI.TwoWay.*`, `Render.Settings`.
+
 ## 2610.1502
 
 - Test fix (T-492): `SizeBy.ClipCutsTheElementToItsBox_AndIsOffByDefault` asserts "not `ClipToBounds`" for an element without `clip` and with `clip="false"` (it expected `Inherit`, but `STextBlock` defaults to `OnDemand` on 5.8). No runtime change.

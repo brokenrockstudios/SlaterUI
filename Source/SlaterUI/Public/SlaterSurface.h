@@ -34,6 +34,14 @@ namespace Slater
 	 * fit along an edge.
 	 */
 	SLATERUI_API void MakeChamferPath(const FVector2f& Size, const FSlaterChamfer& Cuts, float Inset, TArray<FVector2f>& OutPoints);
+
+	/**
+	 * What a click does, shared by `surface` and `button`: sets the view state (when `StateKey` is set), then runs the
+	 * command in the table of the `SSlaterView` the source is in, then the process-wide one. False when a part could not
+	 * run (no handler, a state the layout does not declare, no view for a state; those are logged). The command may
+	 * rebuild the tree the source is in, so nothing of the source is touched after it runs.
+	 */
+	SLATERUI_API bool ActivateAction(const TSharedRef<SWidget>& Source, FName StateKey, const FString& StateValue, FName Command, const FString& CommandArgument);
 }
 
 /**

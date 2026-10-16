@@ -149,6 +149,8 @@ public:
 	UPROPERTY()
 	bool bLocked = false;
 
+	/** A UFUNCTION, so a control inside a repeated item can write `{Count}` (T-381). */
+	UFUNCTION()
 	void SetCount(int32 InCount)
 	{
 		if (Count != InCount)
@@ -202,5 +204,63 @@ public:
 	{
 		Items.Remove(Item);
 		Notify(TEXT("Items"));
+	}
+};
+
+/** Settings the UI edits (T-381): every way a control can write back, and fields it cannot write. */
+UCLASS()
+class USlaterTestSettingsVM : public USlaterTestVMBase
+{
+	GENERATED_BODY()
+
+public:
+	/** Written through SetVolume, which clamps to MaxVolume and broadcasts only a real change (as `UE_MVVM_SET_PROPERTY_VALUE` does). */
+	UPROPERTY(BlueprintReadOnly)
+	float Volume = 0.5f;
+
+	/** Written directly: BlueprintReadWrite and no setter, so the scope broadcasts it. */
+	UPROPERTY(BlueprintReadWrite)
+	bool bMuted = false;
+
+	/** Written through SetNickname, which trims what it is given. */
+	UPROPERTY(BlueprintReadOnly)
+	FString Nickname;
+
+	/** No setter and read-only: a control cannot write it. */
+	UPROPERTY(BlueprintReadOnly)
+	int32 Level = 3;
+
+	/** An object field: no text converts to it. */
+	UPROPERTY(BlueprintReadWrite)
+	TObjectPtr<UObject> Target;
+
+	float MaxVolume = 1.f;
+	/** A view model that notifies on every set, changed or not. */
+	bool bAlwaysBroadcast = false;
+	int32 VolumeSets = 0;
+	int32 NicknameSets = 0;
+
+	UFUNCTION()
+	void SetVolume(float InVolume)
+	{
+		++VolumeSets;
+		const float Clamped = FMath::Clamp(InVolume, 0.f, MaxVolume);
+		if (Clamped != Volume || bAlwaysBroadcast)
+		{
+			Volume = Clamped;
+			Notify(TEXT("Volume"));
+		}
+	}
+
+	UFUNCTION()
+	void SetNickname(const FString& InNickname)
+	{
+		++NicknameSets;
+		const FString Trimmed = InNickname.TrimStartAndEnd();
+		if (Trimmed != Nickname)
+		{
+			Nickname = Trimmed;
+			Notify(TEXT("Nickname"));
+		}
 	}
 };

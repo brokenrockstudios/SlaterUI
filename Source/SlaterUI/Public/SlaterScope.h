@@ -44,6 +44,20 @@ public:
 	 * `Player.Name`) is replaced: the subscription follows the new source. Never null; a path nothing can watch gives a subscription that does nothing.
 	 */
 	virtual TUniquePtr<ISlaterSubscription> Subscribe(const FString& Path, TFunction<void()> OnChange) = 0;
+
+	/**
+	 * Whether a control's event can write to Path (`on-change="{Volume}"`, T-381): the data has a setter for it, or a field
+	 * it lets the UI write. False says why in OutWhy (checked at load, so the error carries the attribute's line). The
+	 * default is a read-only scope.
+	 */
+	virtual bool CheckWrite(const FString& Path, FString& OutWhy) const;
+
+	/**
+	 * Writes a control's value (as text: `0.25`, `true`, a typed name) to Path through its setter, converted to the field's
+	 * type. The data broadcasts the change itself, as for any other change. False when there is no setter or the text does
+	 * not convert. The default writes nothing.
+	 */
+	virtual bool Write(const FString& Path, const FString& Text);
 };
 
 DECLARE_MULTICAST_DELEGATE_TwoParams(FSlaterListChanged, const FString& /*Key*/, bool /*bAdded*/);
@@ -82,6 +96,8 @@ public:
 	void AddValue(const FString& Path, TFunction<FString()> Getter);
 	/** Registers the list at a path. The source decides its keys (the `key` of the `<repeat>` is not used). */
 	void AddList(const FString& Path, TSharedRef<ISlaterListSource> List);
+	/** Lets controls write Path (`on-change="{Path}"`): the setter returns false for a value it refuses. The owner calls `Notify` when the value changes, as for any change. */
+	void AddSetter(const FString& Path, TFunction<bool(const FString&)> Setter);
 	/** Tells the subscriptions on Path that its value changed. */
 	void Notify(const FString& Path);
 
@@ -89,9 +105,12 @@ public:
 	virtual bool Check(const FString& Path, bool bList, FString& OutWhy) const override;
 	virtual TSharedPtr<ISlaterListSource> FindList(const FString& Path, const FString& KeyField) override;
 	virtual TUniquePtr<ISlaterSubscription> Subscribe(const FString& Path, TFunction<void()> OnChange) override;
+	virtual bool CheckWrite(const FString& Path, FString& OutWhy) const override;
+	virtual bool Write(const FString& Path, const FString& Text) override;
 
 private:
 	TMap<FString, TFunction<FString()>> Getters;
+	TMap<FString, TFunction<bool(const FString&)>> Setters;
 	TMap<FString, TSharedRef<ISlaterListSource>> Lists;
 	TSharedRef<FSlaterCallbackTable> Table;
 };

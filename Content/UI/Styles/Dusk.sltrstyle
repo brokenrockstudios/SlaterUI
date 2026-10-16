@@ -14,4 +14,6 @@
 	<color name="UI.Color.CardLine" value="#363B46"/>
 	<color name="UI.Color.Inset" value="#181B21"/>
 	<color name="UI.Color.Track" value="#2A2F39"/>
+	<color name="UI.Color.Control" value="#181B21"/>
+	<color name="UI.Color.ControlLine" value="#5A6170"/>
 </style>

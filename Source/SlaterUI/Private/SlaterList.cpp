@@ -183,6 +183,14 @@ namespace Slater
 				Report(Bound.Spec->Pos, FString::Printf(TEXT("{%s} cannot be bound: %s"), *Bound.Spec->Path, *Why));
 			}
 		}
+		for (const FSlaterBoundEvent& Event : Result.Events)
+		{
+			FString Why;
+			if (!Scope.CheckWrite(Event.Spec->Path, Why))
+			{
+				Report(Event.Spec->Pos, FString::Printf(TEXT("%s=\"{%s}\" cannot write to the data: %s"), *Event.Spec->Event.ToString(), *Event.Spec->Path, *Why));
+			}
+		}
 		for (const TWeakPtr<SWidget>& Weak : Result.Repeats)
 		{
 			const TSharedPtr<SWidget> Widget = Weak.Pin();
@@ -211,6 +219,15 @@ namespace Slater
 				if (!First->Check(Spec->Path, false, Why))
 				{
 					Report(Spec->Pos, FString::Printf(TEXT("{%s} cannot be bound in the <repeat> of {%s}: %s"), *Spec->Path, *Config.SourcePath, *Why));
+				}
+			}
+			TArray<TSharedRef<const FSlaterEventSpec>> Events;
+			GetTemplateEvents(*Config.Template, Events);
+			for (const TSharedRef<const FSlaterEventSpec>& Event : Events)
+			{
+				if (!First->CheckWrite(Event->Path, Why))
+				{
+					Report(Event->Pos, FString::Printf(TEXT("%s=\"{%s}\" cannot write to an item of {%s}: %s"), *Event->Event.ToString(), *Event->Path, *Config.SourcePath, *Why));
 				}
 			}
 		}
@@ -385,6 +402,10 @@ void SSlaterRepeat::Connect(const FString& Key, FItem& Item)
 	{
 		Item.Bindings->Add(Bound);
 	}
+	for (const FSlaterBoundEvent& Event : Item.Built.Events)
+	{
+		Item.Bindings->AddEvent(Event);
+	}
 	if (!Config.AtField.IsEmpty() && Mode == ESlaterBindMode::Pushed)
 	{
 		// The item moves to the cell its `at` field names, and keeps its widget.
@@ -436,6 +457,10 @@ void FSlaterBinder::Attach(const FSlaterBuildResult& Result, const FString& Labe
 	for (const FSlaterBoundAttr& Bound : Result.Bindings)
 	{
 		Bindings->Add(Bound);
+	}
+	for (const FSlaterBoundEvent& Event : Result.Events)
+	{
+		Bindings->AddEvent(Event);
 	}
 	for (const TWeakPtr<SWidget>& Weak : Result.Repeats)
 	{

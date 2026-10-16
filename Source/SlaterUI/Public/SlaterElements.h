@@ -15,6 +15,14 @@ class FSlaterCompiledTemplate;
 class FSlaterElementRegistry;
 class SSlaterOutlet;
 
+/** One thing wrong with the text content of an element, placed inside that text (1-based line and column of the text itself). */
+struct FSlaterTextProblem
+{
+	int32 Line = 1;
+	int32 Column = 1;
+	FString Message;
+};
+
 /** What an attribute holds. Typed by the element, never by a sigil: `padding="UI.Space.M"` and `padding="8"` are both metrics. */
 enum class ESlaterAttrType : uint8
 {
@@ -78,6 +86,12 @@ struct FSlaterAttrDesc
 	FSlaterBindTarget Bind;
 	/** Optional, for a Text attribute: returns what is wrong with a written value (shown at the attribute), or empty when it is fine. */
 	TFunction<FString(const FString&)> CheckText;
+	/**
+	 * An element event (T-381): what happens when the user changes the control, `on-change="{Volume}"` (write the value to
+	 * that path of the data) or `on-change="Audio.SetVolume"` (run a command with it). Always Text; make one with
+	 * `Slater::EventAttribute` (SlaterEvents.h). The element's builder fires it through its `FSlaterEventSink`.
+	 */
+	bool bEvent = false;
 };
 
 enum class ESlaterChildRule : uint8
@@ -200,6 +214,8 @@ struct FSlaterElementDesc
 	 * surface). For a template this runs at compile time, so an instance does no token lookups.
 	 */
 	TFunction<void(const ISlaterStyleSource&, TMap<FName, FSlaterValue>&)> ResolveDefaults;
+	/** Optional, for an element with `bAllowsText`: checks literal text content (not a `{Path}`) and adds a problem for each fault, each reported at its own line and column in the file. */
+	TFunction<void(const FString&, const ISlaterStyleSource&, TArray<FSlaterTextProblem>&)> CheckContent;
 	/** For an element that takes bound text content (`<text>{Count}</text>`). */
 	FSlaterBindTarget TextBind;
 	FSlaterBuilder Builder;
@@ -241,6 +257,15 @@ namespace Slater
 	/** Adds `repeat` and `image` (SlaterList.h). */
 	SLATERUI_API void RegisterListElements(FSlaterElementRegistry& Registry);
 
+	/** Adds the controls `slider`, `checkbox` and `textbox`, whose events write back (T-381, SlaterEvents.h). */
+	SLATERUI_API void RegisterControlElements(FSlaterElementRegistry& Registry);
+
+	/** Adds `popup` (SlaterPopup.h, T-439). */
+	SLATERUI_API void RegisterPopupElements(FSlaterElementRegistry& Registry);
+
+	/** Adds `rich-text` (SlaterRichText.h, T-527). */
+	SLATERUI_API void RegisterRichTextElements(FSlaterElementRegistry& Registry);
+
 	/** The process-wide registry, with the stock elements already in it. Game thread only. */
 	SLATERUI_API FSlaterElementRegistry& Elements();
 
@@ -281,6 +306,28 @@ struct FSlaterBoundAttr
 	TSharedPtr<const FSlaterBindingSpec> Spec;
 };
 
+/** What an element event says (T-381): write the control's value to a path, or run a command with it. Shared by every instance of a template. */
+struct FSlaterEventSpec
+{
+	/** The attribute (`on-change`, `on-commit`). */
+	FName Event;
+	/** Set for a write-back: the path inside the braces (`Volume`, `Player.Name`). */
+	FString Path;
+	/** Set for a command: its name and the one word after a colon. */
+	FName Command;
+	FString Argument;
+	FSlaterPos Pos;
+
+	bool IsWrite() const { return !Path.IsEmpty(); }
+};
+
+/** One write-back event found while building: the control's widget (it carries the `FSlaterEventSink`) and what it writes. */
+struct FSlaterBoundEvent
+{
+	TWeakPtr<SWidget> Widget;
+	TSharedPtr<const FSlaterEventSpec> Spec;
+};
+
 struct SLATERUI_API FSlaterBuildResult
 {
 	/** Null when there are errors. */
@@ -295,6 +342,8 @@ struct SLATERUI_API FSlaterBuildResult
 	TMap<FName, TWeakPtr<SWidget>> ById;
 	/** `{Path}` bindings of the layout itself (not of the templates it repeats). Connect them with `Slater::Bind` (SlaterList.h). */
 	TArray<FSlaterBoundAttr> Bindings;
+	/** Events of the layout itself that write to a `{Path}` (T-381); `Slater::Bind` gives each control its writer. Command events need no binding and are not listed. */
+	TArray<FSlaterBoundEvent> Events;
 	/** Elements with `bTemplateChildren` that were built, for `Slater::Bind` to connect. */
 	TArray<TWeakPtr<SWidget>> Repeats;
 	/** The `<outlet>`s of the layout by their id (a view fills them with `SetOutlet`). */
@@ -353,6 +402,9 @@ namespace Slater
 
 	/** The binding specs of every element of a compiled template (an item's bindings), for checking them against data before an item exists. */
 	SLATERUI_API void GetTemplateBindings(const FSlaterCompiledTemplate& Template, TArray<TSharedRef<const FSlaterBindingSpec>>& OutSpecs);
+
+	/** The write-back events of every element of a compiled template, for checking their paths against an item. */
+	SLATERUI_API void GetTemplateEvents(const FSlaterCompiledTemplate& Template, TArray<TSharedRef<const FSlaterEventSpec>>& OutSpecs);
 
 	/** True for `{Path}` (letters, digits, underscore and dots between the braces, nothing else); OutPath gets the path. */
 	SLATERUI_API bool IsBindingExpr(const FString& Text, FString* OutPath = nullptr);

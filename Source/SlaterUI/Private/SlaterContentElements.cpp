@@ -1,6 +1,7 @@
 // Copyright Broken Rock Studios LLC. All Rights Reserved.
 
 #include "SlaterElements.h"
+#include "SlaterButton.h"
 #include "SlaterCommands.h"
 #include "SlaterMeter.h"
 #include "SlaterOutlet.h"
@@ -146,6 +147,68 @@ namespace
 			}
 		}
 		return Widget;
+	}
+
+	TSharedPtr<SWidget> BuildButton(FSlaterBuildContext& Context)
+	{
+		static const FName RoleName(TEXT("role"));
+		static const FName InsetName(TEXT("inset"));
+		static const FName OnClickName(TEXT("on-click"));
+		static const FName SetStateName(TEXT("set-state"));
+		const FSlaterValue& RoleValue = Context.Values.FindChecked(RoleName);
+		const FName Role = RoleValue.Word;
+
+		FSlaterButtonLooks Looks;
+		Looks.Rest = RoleValue.Surface;
+		if (Context.Style)
+		{
+			Looks.Hover = ResolveSurface(*Context.Style, Role, TEXT("hover"));
+			Looks.Pressed = ResolveSurface(*Context.Style, Role, TEXT("pressed"));
+			Looks.Disabled = ResolveSurface(*Context.Style, Role, TEXT("disabled"));
+			// A style that defines no `.Focused` look shows keyboard focus as hover, the usual gamepad behavior.
+			Looks.Focused = Looks.Hover;
+			FSlaterSurface Focused;
+			if (Context.Style->FindSurface(FName(*FString::Printf(TEXT("%s.Focused"), *Role.ToString())), Focused))
+			{
+				Looks.Focused = Focused;
+			}
+		}
+		else
+		{
+			Looks.Hover = Looks.Pressed = Looks.Focused = Looks.Disabled = Looks.Rest;
+		}
+
+		const FSlaterBuiltChild* Child = Context.Children.Num() > 0 ? &Context.Children[0] : nullptr;
+		const TSharedRef<SSlaterButton> Button = SNew(SSlaterButton)
+			.Looks(Looks)
+			.Inset(FMargin(Context.GetMetric(InsetName) + (Child ? Child->Slot.Margin : 0.f)))
+			[
+				Child ? Child->Widget : SNullWidget::NullWidget
+			];
+		Button->GetFace()->SetRole(Role);
+		if (Child)
+		{
+			if (Child->Slot.HAlign.IsSet())
+			{
+				Button->GetFace()->SetHAlign(Child->Slot.HAlign.GetValue());
+			}
+			if (Child->Slot.VAlign.IsSet())
+			{
+				Button->GetFace()->SetVAlign(Child->Slot.VAlign.GetValue());
+			}
+		}
+		if (Context.Has(OnClickName))
+		{
+			FString CommandName, CommandArgument;
+			Slater::SplitCommandText(Context.GetText(OnClickName), CommandName, CommandArgument);
+			Button->SetCommand(FName(*CommandName), CommandArgument);
+		}
+		FString ClickStateKey, ClickStateValue;
+		if (Context.Has(SetStateName) && Slater::ParseStatePair(Context.GetText(SetStateName), ClickStateKey, ClickStateValue))
+		{
+			Button->SetStateChange(FName(*ClickStateKey), ClickStateValue);
+		}
+		return Button;
 	}
 
 	TSharedPtr<SWidget> BuildOutlet(FSlaterBuildContext& Context)
@@ -393,6 +456,31 @@ void Slater::RegisterContentElements(FSlaterElementRegistry& Registry)
 	SurfaceDesc.Builder = &BuildSurface;
 	const bool bSurface = Registry.Register(MoveTemp(SurfaceDesc), &Error);
 	ensureMsgf(bSurface, TEXT("SlaterUI stock element <surface>: %s"), *Error);
+
+	FSlaterElementDesc ButtonDesc;
+	ButtonDesc.Tag = TEXT("button");
+	ButtonDesc.Purpose = TEXT("a button that takes focus: Enter, Space or the gamepad confirm key press it like a click does");
+	ButtonDesc.Attributes = {
+		Attr(TEXT("role"), ESlaterAttrType::Surface, {}, true),
+		Attr(TEXT("inset"), ESlaterAttrType::Metric),
+	};
+	FSlaterAttrDesc ButtonOnClick = Attr(TEXT("on-click"), ESlaterAttrType::Text);
+	ButtonOnClick.CheckText = [](const FString& Text)
+	{
+		return Slater::CheckCommandText(Text);
+	};
+	ButtonDesc.Attributes.Add(MoveTemp(ButtonOnClick));
+	FSlaterAttrDesc ButtonSetState = Attr(TEXT("set-state"), ESlaterAttrType::Text);
+	ButtonSetState.CheckText = [](const FString& Text)
+	{
+		return Slater::CheckStatePair(Text, TEXT("set-state"));
+	};
+	ButtonDesc.Attributes.Add(MoveTemp(ButtonSetState));
+	ButtonDesc.Children = ESlaterChildRule::One;
+	ButtonDesc.SlotAttrs = ESlaterSlotAttrs::Margin | ESlaterSlotAttrs::HAlign | ESlaterSlotAttrs::VAlign;
+	ButtonDesc.Builder = &BuildButton;
+	const bool bButton = Registry.Register(MoveTemp(ButtonDesc), &Error);
+	ensureMsgf(bButton, TEXT("SlaterUI stock element <button>: %s"), *Error);
 
 	FSlaterElementDesc OutletDesc;
 	OutletDesc.Tag = TEXT("outlet");

@@ -3,6 +3,7 @@
 #include "SlaterBindings.h"
 
 #include "HAL/IConsoleManager.h"
+#include "SlaterEvents.h"
 
 DEFINE_LOG_CATEGORY_STATIC(LogSlaterBindings, Log, All);
 
@@ -82,6 +83,11 @@ void FSlaterBindingSet::Add(const FSlaterBoundAttr& Bound)
 	Entry.Bound = Bound;
 	const FString& Path = Bound.Spec->Path;
 
+	if (const TSharedPtr<SWidget> Target = Bound.Widget.Pin())
+	{
+		Entry.Sink = Slater::FindEventSink(*Target);
+	}
+
 	if (Mode == ESlaterBindMode::Pushed)
 	{
 		FString Text;
@@ -134,8 +140,58 @@ void FSlaterBindingSet::Write(FEntry& Entry, const FString& Text)
 	// A value from data that does not fit the attribute leaves the widget as it was.
 	if (Widget.IsValid() && Slater::ParseBoundValue(Entry.Bound.Spec->Desc, Text, *Style, Value))
 	{
+		// A control whose setter fires its own change event must not send this value straight back.
+		FSlaterEventSink::FApplyScope Applying(Entry.Sink.Get());
 		Entry.Bound.Spec->Desc.Bind.Apply(*Widget, Value, *Style);
 		++Slater::ListStats().Applies;
+	}
+}
+
+void FSlaterBindingSet::AddEvent(const FSlaterBoundEvent& Bound)
+{
+	const TSharedPtr<SWidget> Widget = Bound.Widget.Pin();
+	const TSharedPtr<FSlaterEventSink> Sink = Widget.IsValid() ? Slater::FindEventSink(*Widget) : nullptr;
+	if (!Sink.IsValid())
+	{
+		return;
+	}
+	Sink->SetWriter([this, WeakAlive = TWeakPtr<bool>(Alive)](const FSlaterEventSpec& Spec, const FString& Value)
+	{
+		if (WeakAlive.IsValid())
+		{
+			WriteBack(Spec, Value);
+		}
+	});
+}
+
+void FSlaterBindingSet::WriteBack(const FSlaterEventSpec& Spec, const FString& Value)
+{
+	FString Now;
+	if (Scope->Read(Spec.Path, Now) && Now == Value)
+	{
+		// The data holds it already: writing would only call the setter for nothing.
+		return;
+	}
+	if (Scope->Write(Spec.Path, Value))
+	{
+		++Slater::ListStats().Writes;
+	}
+	else
+	{
+		UE_LOG(LogSlaterBindings, Warning, TEXT("SlaterUI: %s(%d,%d): %s=\"{%s}\" could not write '%s' (no setter now, or the value does not fit the field)"),
+			*Label.ToString(), Spec.Pos.Line, Spec.Pos.Column, *Spec.Event.ToString(), *Spec.Path, *Value);
+	}
+	if (Mode != ESlaterBindMode::Pushed)
+	{
+		return;
+	}
+	// Show what the data holds now, whether or not it broadcast: a setter may have clamped or refused the value.
+	for (int32 Index = 0; Index < Entries.Num(); ++Index)
+	{
+		if (Entries[Index].Bound.Spec->Path == Spec.Path)
+		{
+			Refresh(Index);
+		}
 	}
 }
 
