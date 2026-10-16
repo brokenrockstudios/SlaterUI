@@ -279,6 +279,17 @@ TEST_CLASS(SlaterCommandTests, "BRS.SlaterUI.Command")
 		ASSERT_THAT(IsFalse(OcFirstSurface(View)->Activate()));
 	}
 
+	TEST_METHOD(ACommandNobodyRegistered_WarnsOncePerView)
+	{
+		TestRunner->AddExpectedMessagePlain(TEXT("no handler is registered for the command 'Test.Nope'"), ELogVerbosity::Warning, EAutomationExpectedMessageFlags::Contains, 1);
+		Fix.Write(TEXT("CmButton.sltr"), TEXT("<surface role=\"UI.Surface.Button\" on-click=\"Test.Nope\"/>"));
+		const TSharedRef<SSlaterView> View = SNew(SSlaterView).LayoutId(TEXT("CmButton"));
+		const TSharedPtr<SSlaterSurface> Surface = OcFirstSurface(View);
+		ASSERT_THAT(IsFalse(Surface->Activate()));
+		ASSERT_THAT(IsFalse(Surface->Activate()));
+		ASSERT_THAT(IsFalse(Surface->Activate()));
+	}
+
 	TEST_METHOD(ADisabledSurface_DoesNotFire)
 	{
 		Fix.Write(TEXT("CmButton.sltr"), TEXT("<surface role=\"UI.Surface.Button\" on-click=\"Test.Go\" enabled=\"false\"/>"));

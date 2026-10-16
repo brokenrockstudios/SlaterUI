@@ -2,6 +2,26 @@
 
 Version format `YYMM.DDRR` (year, month, day, revision of that day). Newest first. Keep entries to one line where possible.
 
+## 2610.1606
+
+- `FSlaterGetterScope` takes paths as plain literals (T-562): `ANSICHAR*` overloads of `AddValue`, `AddList`, `AddSetter` and `Notify` forward to the `FString` ones; `Hello` example uses them. Test `APathAsAPlainLiteral_RegistersReadsAndNotifiesLikeTEXT`.
+
+## 2610.1605
+
+- A command with no handler warns once per view and command (T-561), naming the layout and pointing to `Slater.Example <Name>`, instead of on every click; opening `Examples/*` without its C++ stays quiet until a button is clicked. Test `ACommandNobodyRegistered_WarnsOncePerView`.
+
+## 2610.1604
+
+- `HelloWidget` example (T-560): `USlaterHelloWidget` (`SlaterHelloWidget.h`, module `SlaterUIExamples`) is Hello as a `USlaterLayoutUserWidget` subclass tied to `Examples/Hello.sltr`, made with `CreateWidget` and `AddToViewport`; `Slater.Example HelloWidget` adds it to the play world (PIE). `FSlaterExample` gets an optional `Show(UWorld&)` for widget examples and `Create` may be null. Tests `BRS.SlaterUI.Examples.*HelloWidget*`.
+
+## 2610.1603
+
+- `USlaterLayoutUserWidget` can be subclassed as a code-owned layout (T-559): `LayoutId` and `StyleName` are protected values a subclass sets in its constructor, and the virtual hooks `BuildScope(FSlaterGetterScope&)` and `RegisterCommands(FSlaterCommandTable&)` run on each build, so the class owns its layout, data and commands. `SSlaterView` takes a `Context` argument so the first build already has its data. `Configure` stays for the generic widget the extension point makes.
+
+## 2610.1602
+
+- New module `SlaterUIExamples` (`DeveloperTool`: editor and development builds, not shipping) with worked examples of C++ bound to layouts (T-553). `FSlaterExampleRegistry` lists them, the console command `Slater.Example [Name] [Style]` opens one in a window (no name lists them), and the first, `Hello` (`Content/UI/Layouts/Examples/Hello.sltr` plus a `.mock.json` for the preview tab), is a counter over `FSlaterGetterScope` and two commands. Tests `BRS.SlaterUI.Examples.*` build every registered example in `Base` and `Dusk`, from its mock file, and drive Hello's commands.
+
 ## 2610.1601
 
 - `canvas` (over `SConstraintCanvas`: `anchor`, `offset`, `size`, `align` on a child), `grid` (over `SGridPanel`: `row`, `column`, `row-span`, `column-span` on a child, `gap`, `column-fill`, `row-fill`) and `safe-zone` (over `SSafeZone`: `title-safe`, `pad-*`) elements (T-529). The new slot attributes are accepted on the right parent only; an element's own attribute of the same name wins. Tests `BRS.SlaterUI.Panels.*`. Registered by `Slater::RegisterPanelElements`.

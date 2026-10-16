@@ -2,7 +2,9 @@
 
 #include "SlaterLayoutWidget.h"
 
+#include "SlaterCommands.h"
 #include "SlaterObjectScope.h"
+#include "SlaterScope.h"
 #include "SlaterView.h"
 
 #include "Blueprint/UserWidget.h"
@@ -121,12 +123,19 @@ const FText USlaterLayoutWidget::GetPaletteCategory()
 
 TSharedRef<SWidget> USlaterLayoutUserWidget::RebuildWidget()
 {
-	const TSharedRef<SSlaterView> NewView = MakeView(LayoutId, StyleName, false);
-	View = NewView;
+	TSharedRef<FSlaterGetterScope> Scope = MakeShared<FSlaterGetterScope>();
+	BuildScope(*Scope);
+	TSharedPtr<ISlaterScope> Context = Scope;
 	if (UObject* Object = ViewModel.Get())
 	{
-		Slater::SetViewModelContext(*NewView, Object);
+		Context = Slater::MakeObjectScope(Object);
 	}
+	const TSharedRef<SSlaterView> NewView = SNew(SSlaterView)
+		.LayoutId(LayoutId)
+		.StyleName(StyleName.IsNone() ? FName(TEXT("Base")) : StyleName)
+		.Context(Context);
+	View = NewView;
+	RegisterCommands(NewView->GetCommands());
 	return NewView;
 }
 

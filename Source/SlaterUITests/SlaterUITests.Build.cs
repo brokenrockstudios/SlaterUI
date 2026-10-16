@@ -23,6 +23,7 @@ public class SlaterUITests : ModuleRules
 				"SlaterUI",
 				"SlaterUIUMG",
 				"SlaterUIGameFeatures",
+					"SlaterUIExamples",
 				"GameFeatures",
 				"GameplayTags",
 				"Slate",

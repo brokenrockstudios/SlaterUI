@@ -7,6 +7,8 @@
 #include "Components/Widget.h"
 #include "SlaterLayoutWidget.generated.h"
 
+class FSlaterCommandTable;
+class FSlaterGetterScope;
 class SSlaterView;
 class UObject;
 
@@ -78,6 +80,10 @@ private:
 /**
  * A `UUserWidget` that is only a layout. The game feature action creates these (UI extension points make UserWidgets);
  * `Configure` says which layout. It has no widget tree.
+ *
+ * Subclass it to own a layout in code (T-559, the "text version of UMG": one class tied 1:1 to its `.sltr`): set `LayoutId`
+ * and `StyleName` in the constructor, fill the scope in `BuildScope` and register the commands in `RegisterCommands`.
+ * `CreateWidget` and `AddToViewport` then work like for any other widget, with no outside `Configure`.
  */
 UCLASS()
 class SLATERUIUMG_API USlaterLayoutUserWidget : public UUserWidget
@@ -96,9 +102,21 @@ public:
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 
-private:
+	/**
+	 * Called each time the view is built, before the layout is: add the values, lists and setters `{Path}` reads. The scope
+	 * is used as the view's context unless `SetViewModel` gave one (a view model wins). Empty by default.
+	 */
+	virtual void BuildScope(FSlaterGetterScope& Scope) {}
+
+	/** Called each time the view is built: register the commands `on-click` names in this view's own table. Empty by default. */
+	virtual void RegisterCommands(FSlaterCommandTable& Commands) {}
+
+	/** The layout ID. A subclass sets it in its constructor; an empty one shows the normal build error. */
 	FString LayoutId;
+	/** The style (`Base`, `Dusk`). */
 	FName StyleName = TEXT("Base");
+
+private:
 	TWeakPtr<SSlaterView> View;
 	TWeakObjectPtr<UObject> ViewModel;
 };

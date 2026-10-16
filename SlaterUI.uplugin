@@ -35,6 +35,11 @@
 			"LoadingPhase": "PostEngineInit"
 		},
 		{
+			"Name": "SlaterUIExamples",
+			"Type": "DeveloperTool",
+			"LoadingPhase": "Default"
+		},
+		{
 			"Name": "SlaterUITests",
 			"Type": "UncookedOnly",
 			"LoadingPhase": "Default"

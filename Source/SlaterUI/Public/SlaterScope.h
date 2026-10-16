@@ -101,6 +101,12 @@ public:
 	/** Tells the subscriptions on Path that its value changed. */
 	void Notify(const FString& Path);
 
+	/** Plain-literal forms (`AddValue("Count", ...)`): convert and forward, nothing else. A `TEXT()` literal or an `FString` still takes the versions above. */
+	void AddValue(const ANSICHAR* Path, TFunction<FString()> Getter) { AddValue(FString(ANSI_TO_TCHAR(Path)), MoveTemp(Getter)); }
+	void AddList(const ANSICHAR* Path, TSharedRef<ISlaterListSource> List) { AddList(FString(ANSI_TO_TCHAR(Path)), MoveTemp(List)); }
+	void AddSetter(const ANSICHAR* Path, TFunction<bool(const FString&)> Setter) { AddSetter(FString(ANSI_TO_TCHAR(Path)), MoveTemp(Setter)); }
+	void Notify(const ANSICHAR* Path) { Notify(FString(ANSI_TO_TCHAR(Path))); }
+
 	virtual bool Read(const FString& Path, FString& OutText) const override;
 	virtual bool Check(const FString& Path, bool bList, FString& OutWhy) const override;
 	virtual TSharedPtr<ISlaterListSource> FindList(const FString& Path, const FString& KeyField) override;

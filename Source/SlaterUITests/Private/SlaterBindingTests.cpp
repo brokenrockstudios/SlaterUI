@@ -474,6 +474,36 @@ TEST_CLASS(SlaterGetterScopeTests, "BRS.SlaterUI.Bind.Getters")
 		Scope->Notify(TEXT("Health"));
 	}
 
+	TEST_METHOD(APathAsAPlainLiteral_RegistersReadsAndNotifiesLikeTEXT)
+	{
+		int32 Plain = 1;
+		int32 Wide = 2;
+		FString Written;
+		const TSharedRef<FSlaterGetterScope> Scope = MakeShared<FSlaterGetterScope>();
+		Scope->AddValue("Plain", [&Plain]() { return FString::FromInt(Plain); });
+		Scope->AddValue(TEXT("Wide"), [&Wide]() { return FString::FromInt(Wide); });
+		Scope->AddValue(FString(TEXT("Named")), []() { return FString(TEXT("n")); });
+		Scope->AddSetter("Plain", [&Written](const FString& V) { Written = V; return true; });
+		Scope->AddList("Things", MakeShared<FBgCountList>());
+
+		FString Out;
+		ASSERT_THAT(IsTrue(Scope->Read(TEXT("Plain"), Out) && Out == TEXT("1")));
+		ASSERT_THAT(IsTrue(Scope->Read(TEXT("Wide"), Out) && Out == TEXT("2")));
+		ASSERT_THAT(IsTrue(Scope->Read(TEXT("Named"), Out) && Out == TEXT("n")));
+		FString Why;
+		ASSERT_THAT(IsTrue(Scope->Check(TEXT("Things"), true, Why)));
+		ASSERT_THAT(IsTrue(Scope->Write(TEXT("Plain"), TEXT("9")) && Written == TEXT("9")));
+
+		int32 Fired = 0;
+		const TUniquePtr<ISlaterSubscription> Sub = Scope->Subscribe(TEXT("Plain"), [&Fired]() { ++Fired; });
+		Plain = 5;
+		Scope->Notify("Plain");
+		ASSERT_THAT(AreEqual(Fired, 1));
+		Scope->Notify(TEXT("Plain"));
+		ASSERT_THAT(AreEqual(Fired, 2));
+		ASSERT_THAT(IsTrue(Scope->Read(TEXT("Plain"), Out) && Out == TEXT("5")));
+	}
+
 	TEST_METHOD(AnUnregisteredPath_FailsWithASuggestion)
 	{
 		const TSharedRef<FSlaterGetterScope> Scope = MakeShared<FSlaterGetterScope>();

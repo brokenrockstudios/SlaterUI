@@ -94,12 +94,15 @@ class SLATERUI_API SSlaterView : public SCompoundWidget
 public:
 	SLATE_BEGIN_ARGS(SSlaterView)
 		: _StyleName(TEXT("Base"))
+		, _UseMockContext(false)
 	{}
 		/** The layout ID (`Panel`, `Hud/Health`). */
 		SLATE_ARGUMENT(FString, LayoutId)
 		SLATE_ARGUMENT(FName, StyleName)
 		/** Bind the layout to `<Layout>.mock.json` next to it (the preview does) unless a context is set. */
 		SLATE_ARGUMENT(bool, UseMockContext)
+		/** The data `{Path}` reads, in place for the first build (as `SetContext` before it, without the second build). */
+		SLATE_ARGUMENT(TSharedPtr<ISlaterScope>, Context)
 	SLATE_END_ARGS()
 
 	virtual ~SSlaterView() override;
@@ -203,6 +206,8 @@ private:
 	TSharedPtr<FSlaterBinder> Binder;
 	TMap<FName, TSharedPtr<SWidget>> OutletContent;
 	FSlaterCommandTable Commands;
+	/** Commands already warned about as having no handler, so a button clicked ten times warns once. */
+	TSet<FName> WarnedMissingCommands;
 	TMap<FName, FString> State;
 	/** The active timer that feeds `AdvanceMotion` is registered; it unregisters itself when nothing moves. */
 	bool bMotionTimerRunning = false;

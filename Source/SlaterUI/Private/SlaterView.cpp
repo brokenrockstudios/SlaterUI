@@ -334,6 +334,7 @@ void SSlaterView::Construct(const FArguments& InArgs)
 	StyleName = InArgs._StyleName;
 	LayoutId = InArgs._LayoutId;
 	bUseMockContext = InArgs._UseMockContext;
+	ExplicitContext = InArgs._Context;
 	ChildSlot[SNullWidget::NullWidget];
 	SetStyle(StyleName);
 	SetAutoRefresh(true);
@@ -684,11 +685,16 @@ bool SSlaterView::RunCommand(const FSlaterCommandCall& Call)
 	{
 		return Slater::RunStockCommand(*this, Call);
 	}
-	if (Commands.Run(Call))
+	if (Commands.Run(Call) || Slater::Commands().Run(Call))
 	{
 		return true;
 	}
-	return Slater::RunCommand(Slater::Commands(), Call);
+	if (!WarnedMissingCommands.Contains(Call.Name))
+	{
+		WarnedMissingCommands.Add(Call.Name);
+		UE_LOG(LogSlaterUI, Warning, TEXT("SlaterUI: no handler is registered for the command '%s' (layout '%s'; further clicks stay quiet). A layout under Examples/ gets its handlers from its C++: open it with Slater.Example <Name> (Slater.Example lists them)"), *Call.Name.ToString(), *LayoutId);
+	}
+	return false;
 }
 
 TSharedPtr<SWidget> SSlaterView::FindById(FName Id) const

@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<!-- Examples/Hello (T-553): the smallest binding. Two paths ({Greeting}, {Count}) and two commands (Hello.Add, Hello.Reset);
+     the C++ side is SlaterUIExamples/Private/HelloExample.cpp. Hello.mock.json lets the preview tab show it without that code. -->
+<surface role="UI.Surface.Panel" inset="UI.Space.L" width="320">
+	<vbox>
+		<text font="UI.Font.Heading" margin="UI.Space.S">Hello, binding</text>
+		<text wrap="true" margin="UI.Space.S">{Greeting}</text>
+		<hbox margin="UI.Space.S">
+			<text color="UI.Color.TextMuted" margin="UI.Space.S" valign="center">Pressed</text>
+			<text font="UI.Font.Heading" margin="UI.Space.S" valign="center">{Count}</text>
+			<text color="UI.Color.TextMuted" margin="UI.Space.S" valign="center">times</text>
+		</hbox>
+		<hbox margin="UI.Space.M" halign="right">
+			<surface role="UI.Surface.Button" inset="UI.Space.M" margin="UI.Space.S" on-click="Hello.Add">
+				<text color="#FFFFFF">Add one</text>
+			</surface>
+			<surface role="UI.Surface.Panel" inset="UI.Space.M" margin="UI.Space.S" on-click="Hello.Reset">
+				<text>Reset</text>
+			</surface>
+		</hbox>
+	</vbox>
+</surface>

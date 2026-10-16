@@ -7,6 +7,10 @@
 #include "FieldNotificationId.h"
 #include "IFieldNotificationClassDescriptor.h"
 #include "INotifyFieldValueChanged.h"
+#include "SlaterCommands.h"
+#include "SlaterLayoutWidget.h"
+#include "SlaterScope.h"
+#include "SlaterView.h"
 #include "UObject/Object.h"
 
 #include "SlaterTestViewModels.generated.h"
@@ -262,5 +266,45 @@ public:
 			Nickname = Trimmed;
 			Notify(TEXT("Nickname"));
 		}
+	}
+};
+
+/** A code-owned layout widget (T-559): layout, scope values and commands all come from the class, no `Configure`. */
+UCLASS()
+class USlaterTestCodeWidget : public USlaterLayoutUserWidget
+{
+	GENERATED_BODY()
+
+public:
+	USlaterTestCodeWidget()
+	{
+		LayoutId = TEXT("CodeWidget");
+		StyleName = TEXT("Dusk");
+	}
+
+	int32 Count = 0;
+	int32 ScopeBuilds = 0;
+	int32 CommandRegistrations = 0;
+
+	void Add()
+	{
+		++Count;
+		if (const TSharedPtr<SSlaterView> Shown = GetView())
+		{
+			static_cast<FSlaterGetterScope*>(Shown->GetContext().Get())->Notify(TEXT("Count"));
+		}
+	}
+
+protected:
+	virtual void BuildScope(FSlaterGetterScope& Scope) override
+	{
+		++ScopeBuilds;
+		Scope.AddValue(TEXT("Count"), [this]() { return FString::FromInt(Count); });
+	}
+
+	virtual void RegisterCommands(FSlaterCommandTable& Commands) override
+	{
+		++CommandRegistrations;
+		Commands.Register(TEXT("Code.Add"), [this](const FSlaterCommandCall&) { Add(); });
 	}
 };

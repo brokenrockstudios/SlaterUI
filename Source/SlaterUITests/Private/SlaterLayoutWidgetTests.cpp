@@ -285,6 +285,37 @@ TEST_CLASS(SlaterGameFeatureActionTests, "BRS.SlaterUI.GameFeatureAction")
 		ASSERT_THAT(IsTrue(Widget->GetView()->GetLayoutId() == TEXT("Panel")));
 	}
 
+	TEST_METHOD(ACodeOwnedWidget_GetsLayoutScopeAndCommandsFromItsHooks)
+	{
+		Fix.Write(TEXT("CodeWidget.sltr"), TEXT("<vbox><text>{Count}</text><surface role=\"UI.Surface.Button\" on-click=\"Code.Add\"><text>add</text></surface></vbox>"));
+		TStrongObjectPtr<USlaterTestCodeWidget> Widget(Cast<USlaterTestCodeWidget>(UUserWidget::CreateWidgetInstance(Spawner.GetWorld(), USlaterTestCodeWidget::StaticClass(), NAME_None)));
+		ASSERT_THAT(IsTrue(Widget.IsValid()));
+		const TSharedRef<SWidget> Slate = Widget->TakeWidget();
+		const TSharedPtr<SSlaterView> View = Widget->GetView();
+		ASSERT_THAT(IsTrue(View.IsValid()));
+		ASSERT_THAT(IsFalse(View->HasErrors()));
+		ASSERT_THAT(IsTrue(View->GetLayoutId() == TEXT("CodeWidget")));
+		ASSERT_THAT(IsTrue(View->GetStyleName() == FName(TEXT("Dusk"))));
+		ASSERT_THAT(AreEqual(Widget->ScopeBuilds, 1));
+		ASSERT_THAT(AreEqual(Widget->CommandRegistrations, 1));
+		ASSERT_THAT(IsTrue(SlaterBindKit::Texts(Slate).Contains(TEXT("0"))));
+
+		FSlaterCommandCall Call;
+		Call.Name = TEXT("Code.Add");
+		ASSERT_THAT(IsTrue(View->RunCommand(Call)));
+		ASSERT_THAT(IsTrue(View->RunCommand(Call)));
+		ASSERT_THAT(AreEqual(Widget->Count, 2));
+		ASSERT_THAT(IsTrue(SlaterBindKit::Texts(Slate).Contains(TEXT("2"))));
+	}
+
+	TEST_METHOD(ACodeOwnedWidget_WithAMissingLayout_ShowsTheNormalBuildError)
+	{
+		TStrongObjectPtr<USlaterTestCodeWidget> Widget(Cast<USlaterTestCodeWidget>(UUserWidget::CreateWidgetInstance(Spawner.GetWorld(), USlaterTestCodeWidget::StaticClass(), NAME_None)));
+		ASSERT_THAT(IsTrue(Widget.IsValid()));
+		const TSharedRef<SWidget> Slate = Widget->TakeWidget();
+		ASSERT_THAT(IsTrue(Widget->GetView()->HasErrors()));
+	}
+
 	TEST_METHOD(TheUiPackTemplate_LoadsAsAPack_AndIsGoneWhenItsRootsAreRemoved)
 	{
 		const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("SlaterUI"));

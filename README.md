@@ -69,6 +69,13 @@ Spacing and colors take either a style token or an inline value, so `margin="UI.
 - Live mouse states: hover and pressed looks on interactive surfaces
 - Designer path: a `Slater Layout` UMG widget with MVVM view-model support, and a Game Feature action to add a layout to the HUD
 - Escape hatch: `<umg class="...">` embeds a UMG widget inside a layout
+- Works with the Widget Reflector: inspect, pick and debug SlaterUI widgets like any other Slate UI
+
+## Widget Reflector
+
+Because `.sltr` builds ordinary Slate widgets, Unreal's Widget Reflector fully works with SlaterUI. Pick a widget on screen to find it in the live tree, inspect its geometry and properties, and debug layout problems the same way you would for hand-written Slate.
+
+![The Widget Reflector inspecting a SlaterUI layout](Docs/Images/widgetreflector.png)
 
 ## Roadmap (coming soon)
 
