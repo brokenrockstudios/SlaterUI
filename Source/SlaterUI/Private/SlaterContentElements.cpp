@@ -6,6 +6,7 @@
 #include "SlaterMeter.h"
 #include "SlaterOutlet.h"
 #include "SlaterSurface.h"
+#include "SlaterText.h"
 
 #include "Styling/CoreStyle.h"
 #include "Widgets/Colors/SColorBlock.h"
@@ -239,14 +240,47 @@ namespace
 		const FLinearColor Color = Context.GetColor(ColorName);
 
 		const FName Justify = Context.GetEnum(JustifyName, Left);
+		const FName Overflow = Context.GetEnum(TEXT("overflow"), TEXT("clip"));
+		const FName Transform = Context.GetEnum(TEXT("transform"), TEXT("none"));
+		const int32 MaxLines = Context.Has(TEXT("max-lines")) ? FMath::FloorToInt(Context.GetMetric(TEXT("max-lines"))) : 0;
+		if (Context.Has(TEXT("max-lines")) && MaxLines < 1)
+		{
+			Context.Failure = TEXT("<text> max-lines must be 1 or more, for example max-lines=\"2\"");
+			return nullptr;
+		}
+		if (Context.Has(TEXT("line-height")) && Context.GetMetric(TEXT("line-height")) <= 0.f)
+		{
+			Context.Failure = TEXT("<text> line-height is a multiplier of the font's own line height and must be above 0, for example line-height=\"1.2\"");
+			return nullptr;
+		}
+		if (Context.Has(TEXT("shadow-color")) && !Context.Has(TEXT("shadow")))
+		{
+			Context.Failure = TEXT("<text> shadow-color needs shadow, the offset in pixels, for example shadow=\"1\" shadow-color=\"#000000\"");
+			return nullptr;
+		}
 		// Bound text (`{Count}`) is written by the binding; until then the text is empty.
 		const bool bBound = Slater::IsBindingExpr(Context.Node.Text);
-		return SNew(STextBlock)
+		// SNew(SSlaterText) would name the widget type "SSlaterText"; callers and tests look for `<text>` as "STextBlock", so the type name is kept.
+		const TSharedRef<SSlaterText> Text = MakeTDecl<SSlaterText>("STextBlock", __FILE__, __LINE__, RequiredArgs::MakeRequiredArgs()) <<= SSlaterText::FArguments()
 			.Text(bBound ? FText::GetEmpty() : FText::FromString(Context.Node.Text))
 			.Font(FCoreStyle::GetDefaultFontStyle(Font.Role, Font.Size))
 			.ColorAndOpacity(FSlateColor(Color))
 			.AutoWrapText(Context.GetBool(WrapName, false))
-			.Justification(Justify == Center ? ETextJustify::Center : Justify == Right ? ETextJustify::Right : ETextJustify::Left);
+			.Justification(Justify == Center ? ETextJustify::Center : Justify == Right ? ETextJustify::Right : ETextJustify::Left)
+			.TransformPolicy(Transform == TEXT("upper") ? ETextTransformPolicy::ToUpper : Transform == TEXT("lower") ? ETextTransformPolicy::ToLower : ETextTransformPolicy::None);
+		Text->SetOverflow(Overflow == TEXT("ellipsis") ? ETextOverflowPolicy::Ellipsis : ETextOverflowPolicy::Clip);
+		if (Context.Has(TEXT("line-height")))
+		{
+			Text->SetLineHeight(Context.GetMetric(TEXT("line-height")));
+		}
+		if (Context.Has(TEXT("shadow")))
+		{
+			const float Offset = Context.GetMetric(TEXT("shadow"));
+			Text->SetShadowOffset(FVector2D(Offset, Offset));
+			Text->SetShadowColorAndOpacity(Context.GetColor(TEXT("shadow-color"), FLinearColor(0.f, 0.f, 0.f, 0.5f)));
+		}
+		Text->SetMaxLines(MaxLines);
+		return Text;
 	}
 
 	/** Puts the surface the state selects into the role's value, so the builder (once per item) does no token lookups. */
@@ -425,7 +459,7 @@ namespace
 		return Target;
 	}
 
-	FSlaterAttrDesc Attr(const TCHAR* Name, ESlaterAttrType Type, std::initializer_list<const TCHAR*> Words = {}, bool bRequired = false)
+	FSlaterAttrDesc ContentAttr(const TCHAR* Name, ESlaterAttrType Type, std::initializer_list<const TCHAR*> Words = {}, bool bRequired = false)
 	{
 		FSlaterAttrDesc Desc;
 		Desc.Name = Name;
@@ -447,40 +481,40 @@ void Slater::RegisterContentElements(FSlaterElementRegistry& Registry)
 	SurfaceDesc.Tag = TEXT("surface");
 	SurfaceDesc.Purpose = TEXT("a styled background or button face around one child");
 	SurfaceDesc.Attributes = {
-		Attr(TEXT("role"), ESlaterAttrType::Surface, {}, true),
-		Attr(TEXT("state"), ESlaterAttrType::Enum, {TEXT("normal"), TEXT("hover"), TEXT("pressed"), TEXT("disabled")}),
-		Attr(TEXT("inset"), ESlaterAttrType::Metric),
-		Attr(TEXT("interactive"), ESlaterAttrType::Bool),
+		ContentAttr(TEXT("role"), ESlaterAttrType::Surface, {}, true),
+		ContentAttr(TEXT("state"), ESlaterAttrType::Enum, {TEXT("normal"), TEXT("hover"), TEXT("pressed"), TEXT("disabled")}),
+		ContentAttr(TEXT("inset"), ESlaterAttrType::Metric),
+		ContentAttr(TEXT("interactive"), ESlaterAttrType::Bool),
 	};
 	SurfaceDesc.Attributes[1].Bind = SurfaceStateBind();
-	FSlaterAttrDesc OnClick = Attr(TEXT("on-click"), ESlaterAttrType::Text);
+	FSlaterAttrDesc OnClick = ContentAttr(TEXT("on-click"), ESlaterAttrType::Text);
 	OnClick.CheckText = [](const FString& Text)
 	{
 		return Slater::CheckCommandText(Text);
 	};
 	SurfaceDesc.Attributes.Add(MoveTemp(OnClick));
-	FSlaterAttrDesc SetState = Attr(TEXT("set-state"), ESlaterAttrType::Text);
+	FSlaterAttrDesc SetState = ContentAttr(TEXT("set-state"), ESlaterAttrType::Text);
 	SetState.CheckText = [](const FString& Text)
 	{
 		return Slater::CheckStatePair(Text, TEXT("set-state"));
 	};
 	SurfaceDesc.Attributes.Add(MoveTemp(SetState));
-	FSlaterAttrDesc HoverSetState = Attr(TEXT("hover-set-state"), ESlaterAttrType::Text);
+	FSlaterAttrDesc HoverSetState = ContentAttr(TEXT("hover-set-state"), ESlaterAttrType::Text);
 	HoverSetState.CheckText = [](const FString& Text)
 	{
 		return Slater::CheckStatePair(Text, TEXT("hover-set-state"));
 	};
 	SurfaceDesc.Attributes.Add(MoveTemp(HoverSetState));
-	FSlaterAttrDesc LeaveSetState = Attr(TEXT("leave-set-state"), ESlaterAttrType::Text);
+	FSlaterAttrDesc LeaveSetState = ContentAttr(TEXT("leave-set-state"), ESlaterAttrType::Text);
 	LeaveSetState.CheckText = [](const FString& Text)
 	{
 		return Slater::CheckStatePair(Text, TEXT("leave-set-state"));
 	};
 	SurfaceDesc.Attributes.Add(MoveTemp(LeaveSetState));
-	SurfaceDesc.Attributes.Add(Attr(TEXT("shape"), ESlaterAttrType::Enum, {TEXT("rounded"), TEXT("chamfer")}));
+	SurfaceDesc.Attributes.Add(ContentAttr(TEXT("shape"), ESlaterAttrType::Enum, {TEXT("rounded"), TEXT("chamfer")}));
 	for (const TCHAR* Cut : {TEXT("cut"), TEXT("cut-tl"), TEXT("cut-tr"), TEXT("cut-br"), TEXT("cut-bl")})
 	{
-		SurfaceDesc.Attributes.Add(Attr(Cut, ESlaterAttrType::Metric));
+		SurfaceDesc.Attributes.Add(ContentAttr(Cut, ESlaterAttrType::Metric));
 	}
 	SurfaceDesc.Children = ESlaterChildRule::One;
 	SurfaceDesc.SlotAttrs = ESlaterSlotAttrs::Margin | ESlaterSlotAttrs::HAlign | ESlaterSlotAttrs::VAlign;
@@ -493,16 +527,16 @@ void Slater::RegisterContentElements(FSlaterElementRegistry& Registry)
 	ButtonDesc.Tag = TEXT("button");
 	ButtonDesc.Purpose = TEXT("a button that takes focus: Enter, Space or the gamepad confirm key press it like a click does");
 	ButtonDesc.Attributes = {
-		Attr(TEXT("role"), ESlaterAttrType::Surface, {}, true),
-		Attr(TEXT("inset"), ESlaterAttrType::Metric),
+		ContentAttr(TEXT("role"), ESlaterAttrType::Surface, {}, true),
+		ContentAttr(TEXT("inset"), ESlaterAttrType::Metric),
 	};
-	FSlaterAttrDesc ButtonOnClick = Attr(TEXT("on-click"), ESlaterAttrType::Text);
+	FSlaterAttrDesc ButtonOnClick = ContentAttr(TEXT("on-click"), ESlaterAttrType::Text);
 	ButtonOnClick.CheckText = [](const FString& Text)
 	{
 		return Slater::CheckCommandText(Text);
 	};
 	ButtonDesc.Attributes.Add(MoveTemp(ButtonOnClick));
-	FSlaterAttrDesc ButtonSetState = Attr(TEXT("set-state"), ESlaterAttrType::Text);
+	FSlaterAttrDesc ButtonSetState = ContentAttr(TEXT("set-state"), ESlaterAttrType::Text);
 	ButtonSetState.CheckText = [](const FString& Text)
 	{
 		return Slater::CheckStatePair(Text, TEXT("set-state"));
@@ -526,10 +560,16 @@ void Slater::RegisterContentElements(FSlaterElementRegistry& Registry)
 	TextDesc.Tag = TEXT("text");
 	TextDesc.Purpose = TEXT("words and numbers shown on screen, what other toolkits call a label");
 	TextDesc.Attributes = {
-		Attr(TEXT("font"), ESlaterAttrType::Font),
-		Attr(TEXT("color"), ESlaterAttrType::Color),
-		Attr(TEXT("wrap"), ESlaterAttrType::Bool),
-		Attr(TEXT("justify"), ESlaterAttrType::Enum, {TEXT("left"), TEXT("center"), TEXT("right")}),
+		ContentAttr(TEXT("font"), ESlaterAttrType::Font),
+		ContentAttr(TEXT("color"), ESlaterAttrType::Color),
+		ContentAttr(TEXT("wrap"), ESlaterAttrType::Bool),
+		ContentAttr(TEXT("justify"), ESlaterAttrType::Enum, {TEXT("left"), TEXT("center"), TEXT("right")}),
+		ContentAttr(TEXT("overflow"), ESlaterAttrType::Enum, {TEXT("clip"), TEXT("ellipsis")}),
+		ContentAttr(TEXT("max-lines"), ESlaterAttrType::Metric),
+		ContentAttr(TEXT("line-height"), ESlaterAttrType::Metric),
+		ContentAttr(TEXT("shadow"), ESlaterAttrType::Metric),
+		ContentAttr(TEXT("shadow-color"), ESlaterAttrType::Color),
+		ContentAttr(TEXT("transform"), ESlaterAttrType::Enum, {TEXT("none"), TEXT("upper"), TEXT("lower")}),
 	};
 	TextDesc.Children = ESlaterChildRule::None;
 	TextDesc.SlotAttrs = ESlaterSlotAttrs::None;
@@ -544,9 +584,9 @@ void Slater::RegisterContentElements(FSlaterElementRegistry& Registry)
 	MeterDesc.Tag = TEXT("meter");
 	MeterDesc.Purpose = TEXT("a progress or fill bar, filled from the left to a value from 0 to 1");
 	MeterDesc.Attributes = {
-		Attr(TEXT("value"), ESlaterAttrType::Metric),
-		Attr(TEXT("color"), ESlaterAttrType::Color),
-		Attr(TEXT("track"), ESlaterAttrType::Color),
+		ContentAttr(TEXT("value"), ESlaterAttrType::Metric),
+		ContentAttr(TEXT("color"), ESlaterAttrType::Color),
+		ContentAttr(TEXT("track"), ESlaterAttrType::Color),
 	};
 	MeterDesc.Attributes[0].Bind = MeterValueBind();
 	MeterDesc.Children = ESlaterChildRule::None;
@@ -559,8 +599,8 @@ void Slater::RegisterContentElements(FSlaterElementRegistry& Registry)
 	ScaleDesc.Tag = TEXT("scale");
 	ScaleDesc.Purpose = TEXT("scales its one child to the room it is given: stretch=none, fit (default), fill, stretch or user (with scale)");
 	ScaleDesc.Attributes = {
-		Attr(TEXT("stretch"), ESlaterAttrType::Enum, {TEXT("none"), TEXT("fit"), TEXT("fill"), TEXT("stretch"), TEXT("user")}),
-		Attr(TEXT("scale"), ESlaterAttrType::Metric),
+		ContentAttr(TEXT("stretch"), ESlaterAttrType::Enum, {TEXT("none"), TEXT("fit"), TEXT("fill"), TEXT("stretch"), TEXT("user")}),
+		ContentAttr(TEXT("scale"), ESlaterAttrType::Metric),
 	};
 	ScaleDesc.Children = ESlaterChildRule::One;
 	ScaleDesc.Builder = &BuildScale;
@@ -571,8 +611,8 @@ void Slater::RegisterContentElements(FSlaterElementRegistry& Registry)
 	ThrobberDesc.Tag = TEXT("throbber");
 	ThrobberDesc.Purpose = TEXT("a spinning loading indicator");
 	ThrobberDesc.Attributes = {
-		Attr(TEXT("color"), ESlaterAttrType::Color),
-		Attr(TEXT("size"), ESlaterAttrType::Metric),
+		ContentAttr(TEXT("color"), ESlaterAttrType::Color),
+		ContentAttr(TEXT("size"), ESlaterAttrType::Metric),
 	};
 	ThrobberDesc.Children = ESlaterChildRule::None;
 	ThrobberDesc.ResolveDefaults = &ResolveThrobberDefaults;
@@ -584,8 +624,8 @@ void Slater::RegisterContentElements(FSlaterElementRegistry& Registry)
 	RuleDesc.Tag = TEXT("rule");
 	RuleDesc.Purpose = TEXT("a thin horizontal line, a divider");
 	RuleDesc.Attributes = {
-		Attr(TEXT("color"), ESlaterAttrType::Color),
-		Attr(TEXT("thickness"), ESlaterAttrType::Metric),
+		ContentAttr(TEXT("color"), ESlaterAttrType::Color),
+		ContentAttr(TEXT("thickness"), ESlaterAttrType::Metric),
 	};
 	RuleDesc.Children = ESlaterChildRule::None;
 	RuleDesc.ResolveDefaults = &ResolveRuleDefaults;

@@ -5,8 +5,26 @@
 #include "CQTest.h"
 #include "SlaterBindTestKit.h"
 #include "SlaterImages.h"
+#include "SlaterStyle.h"
 #include "SlaterSurface.h"
 #include "SlaterView.h"
+#include "Widgets/Images/SImage.h"
+
+namespace
+{
+	/** SImage keeps its brush and tint in protected attributes; read them through a derived view (adds no data, nothing is constructed). */
+	struct FAccountPeekImage : SImage
+	{
+		static const FSlateBrush* BrushOf(const SWidget& Widget)
+		{
+			return static_cast<const FAccountPeekImage&>(Widget).GetImageAttribute().Get();
+		}
+		static FLinearColor TintOf(const SWidget& Widget)
+		{
+			return static_cast<const FAccountPeekImage&>(Widget).GetColorAndOpacityAttribute().Get().GetSpecifiedColor();
+		}
+	};
+}
 
 /** The account dashboard sample (T-408): `Layouts/Account.sltr` in the `Skyline` style, with `Account.mock.json` bound. */
 TEST_CLASS(SlaterAccountTests, "BRS.SlaterUI.Account")
@@ -88,6 +106,46 @@ TEST_CLASS(SlaterAccountTests, "BRS.SlaterUI.Account")
 		{
 			ASSERT_THAT(IsTrue(View->FindById(Id).IsValid()));
 		}
+	}
+
+	TEST_METHOD(TheWhiteLineIcons_TakeTheStyleColors_AndTheAvatarKeepsItsOwn)
+	{
+		// The line icons are white SVGs: untinted they vanish on Base's white cards (T-544).
+		FSlaterStyleStack Stack;
+		Slater::StyleLibrary().BuildStack(TEXT("Base"), Stack);
+		FLinearColor Text, Accent;
+		ASSERT_THAT(IsTrue(Stack.FindColor(TEXT("UI.Color.Text"), Text) && Stack.FindColor(TEXT("UI.Color.Accent"), Accent)));
+		const TMap<FString, FLinearColor> Expected = {
+			{TEXT("Book"), Text}, {TEXT("Globe"), Text}, {TEXT("Gift"), Text}, {TEXT("External"), Accent}, {TEXT("Frog"), FLinearColor::White}};
+
+		const TSharedRef<SSlaterView> View = MakeView(TEXT("Base"));
+		ASSERT_THAT(IsFalse(View->HasErrors()));
+		TMap<FString, int32> Seen;
+		TArray<TSharedRef<SWidget>> Pending = {View};
+		while (!Pending.IsEmpty())
+		{
+			const TSharedRef<SWidget> Widget = Pending.Pop();
+			Widget->GetChildren()->ForEachWidget([&](SWidget& Child) { Pending.Add(Child.AsShared()); });
+			if (Widget->GetType() != FName(TEXT("SImage")))
+			{
+				continue;
+			}
+						for (const TPair<FString, FLinearColor>& Pair : Expected)
+			{
+				if (FAccountPeekImage::BrushOf(*Widget) == Slater::FindImage(FName(*Pair.Key, FNAME_Find)))
+				{
+					++Seen.FindOrAdd(Pair.Key);
+					const FLinearColor Tint = FAccountPeekImage::TintOf(*Widget);
+					if (!Tint.Equals(Pair.Value))
+					{
+						AddError(FString::Printf(TEXT("icon '%s' is tinted %s, expected %s"), *Pair.Key, *Tint.ToString(), *Pair.Value.ToString()));
+					}
+				}
+			}
+		}
+		// Each card icon once, the External arrow on all three cards, one avatar.
+		ASSERT_THAT(IsTrue(Seen.FindRef(TEXT("Book")) == 1 && Seen.FindRef(TEXT("Globe")) == 1 && Seen.FindRef(TEXT("Gift")) == 1));
+		ASSERT_THAT(IsTrue(Seen.FindRef(TEXT("External")) == 3 && Seen.FindRef(TEXT("Frog")) == 1));
 	}
 
 	TEST_METHOD(TheLayout_AlsoBuildsInBaseAndDusk)

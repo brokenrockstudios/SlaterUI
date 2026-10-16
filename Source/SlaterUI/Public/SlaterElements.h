@@ -104,7 +104,7 @@ enum class ESlaterChildRule : uint8
 };
 
 /** Attributes a child may carry that its parent's slot uses. */
-enum class ESlaterSlotAttrs : uint8
+enum class ESlaterSlotAttrs : uint16
 {
 	None = 0,
 	Fill = 1 << 0,
@@ -112,6 +112,18 @@ enum class ESlaterSlotAttrs : uint8
 	HAlign = 1 << 2,
 	VAlign = 1 << 3,
 	All = Fill | Margin | HAlign | VAlign,
+	/** `canvas` children (T-529). */
+	Anchor = 1 << 4,
+	Offset = 1 << 5,
+	Size = 1 << 6,
+	Align = 1 << 7,
+	CanvasAll = Anchor | Offset | Size | Align,
+	/** `grid` children (T-529). */
+	Row = 1 << 8,
+	Column = 1 << 9,
+	RowSpan = 1 << 10,
+	ColumnSpan = 1 << 11,
+	GridAll = Row | Column | RowSpan | ColumnSpan,
 };
 ENUM_CLASS_FLAGS(ESlaterSlotAttrs);
 
@@ -123,6 +135,19 @@ struct FSlaterSlotValues
 	float Margin = 0.f;
 	TOptional<EHorizontalAlignment> HAlign;
 	TOptional<EVerticalAlignment> VAlign;
+	/** `canvas` slot (T-529): the anchor word (`top-left`, `fill`, ...); unset means top-left. */
+	TOptional<FName> Anchor;
+	/** `offset="x, y"`: the position from the anchor on a point axis, the inset from both edges on a stretched one. */
+	FVector2D Offset = FVector2D::ZeroVector;
+	/** `size="w, h"`; unset means the child's own size. */
+	TOptional<FVector2D> Size;
+	/** `align="x, y"`: which point of the child sits on the anchor, 0 to 1; unset means the anchor's own point. */
+	TOptional<FVector2D> Align;
+	/** `grid` slot (T-529). */
+	int32 Row = 0;
+	int32 Column = 0;
+	int32 RowSpan = 1;
+	int32 ColumnSpan = 1;
 };
 
 struct FSlaterBuiltChild
@@ -253,6 +278,8 @@ namespace Slater
 
 	/** Adds `surface` and `text` to a registry. */
 	SLATERUI_API void RegisterContentElements(FSlaterElementRegistry& Registry);
+	/** `canvas`, `grid` and `safe-zone` (T-529). */
+	SLATERUI_API void RegisterPanelElements(FSlaterElementRegistry& Registry);
 
 	/** Adds `repeat` and `image` (SlaterList.h). */
 	SLATERUI_API void RegisterListElements(FSlaterElementRegistry& Registry);

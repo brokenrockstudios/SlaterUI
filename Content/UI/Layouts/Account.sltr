@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!-- An account dashboard page (T-408, v1): a profile card on the left; three link cards, a subscribers card and a progress card on the right.
-     Data: Account.mock.json. Show it with the Skyline style (the card surfaces are defined there). Hover is the style's instant outline (the fade is T-410).
+     Data: Account.mock.json. Show it with the Skyline style (the card surfaces are defined there). Hover is the style's instant outline (the fade is T-410). The line icons are white SVGs, so each takes a tint (the text color, the accent beside the link); the avatar is full color and has none.
      The progress bar is a track and a fixed-width fill until <meter> exists (T-409). -->
 <hbox>
 	<template name="stat" params="label value">
@@ -12,7 +12,7 @@
 	<template name="link-card" params="icon title body link">
 		<surface role="UI.Surface.Card" interactive="true" inset="UI.Space.L" width="230">
 			<vbox>
-				<image src="$icon" size="28" halign="left"/>
+				<image src="$icon" size="28" tint="UI.Color.Text" halign="left"/>
 				<spacer height="8"/>
 				<text font="UI.Font.Heading">$title</text>
 				<spacer height="4"/>
@@ -21,7 +21,7 @@
 				<hbox>
 					<text color="UI.Color.Accent" valign="center">$link</text>
 					<spacer width="6"/>
-					<image src="External" size="14" valign="center"/>
+					<image src="External" size="14" tint="UI.Color.Accent" valign="center"/>
 				</hbox>
 			</vbox>
 		</surface>

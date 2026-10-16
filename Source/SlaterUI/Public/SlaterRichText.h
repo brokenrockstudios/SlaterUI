@@ -20,18 +20,23 @@ struct FSlaterRichRun
 	FString Text;
 	FName FontRole;
 	int32 FontSize = 0;
+	/** The run's text color; for `img`, its `tint` (white when it has none and keeps its own colors). */
 	FLinearColor Color = FLinearColor::White;
 	/** For `img`: the name written in `src` and whether the image source had it. */
 	FString Image;
 	bool bImageFound = false;
+	/** For `img` (T-544): the size it is laid out at, and how far its bottom sits below the text baseline (negative = above), in Slate units. */
+	FVector2D ImageSize = FVector2D::ZeroVector;
+	float ImageBaseline = 0.f;
 };
 
 namespace Slater
 {
 	/**
 	 * Checks rich text markup (T-527) against the style: `<b>..</>`, `<i>..</>`, `<font value="UI.Font.Heading">..</>`,
-	 * `<color value="UI.Color.Accent">..</>` and `<img src="Name"/>`. A run closes with `</>` on the line it opened,
-	 * runs do not nest, and every other tag is a problem. A `<` that does not start a tag is plain text.
+	 * `<color value="UI.Color.Accent">..</>` and `<img src="Name" size="16" baseline="3" tint="UI.Color.Text"/>` (`size`,
+	 * `baseline` and `tint` optional, T-544). A run closes with `</>` on the line it opened, runs do not nest, and every other tag is a problem. A `<` that
+	 * does not start a tag is plain text.
 	 */
 	SLATERUI_API void CheckRichText(const FString& Text, const ISlaterStyleSource& Style, TArray<FSlaterTextProblem>& OutProblems);
 
@@ -42,8 +47,9 @@ namespace Slater
 /**
  * The `rich-text` element (T-527): the engine's `SRichTextBlock` with decorators that read the layout's style tokens.
  * `b` and `i` use the Bold and Italic roles at the body size, `font` and `color` name tokens, `img` names an image of
- * the installed `ISlaterImageSource`. The text may be bound (`{Description}`); bound text is not checked, a tag the
- * decorators do not know shows as written.
+ * the installed `ISlaterImageSource`. An image is as tall as the font's line and centered on it unless `size` (its height,
+ * the width keeps the brush's aspect) or `baseline` (how far its bottom sits below the text baseline) say otherwise.
+ * The text may be bound (`{Description}`); bound text is not checked, a tag the decorators do not know shows as written.
  */
 class SLATERUI_API SSlaterRichText : public SCompoundWidget
 {

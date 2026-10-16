@@ -3,10 +3,14 @@
 #if WITH_DEV_AUTOMATION_TESTS
 
 #include "CQTest.h"
+#include "Fonts/FontMeasure.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Misc/AutomationTest.h"
+#include "Rendering/SlateRenderer.h"
 #include "SlaterListTestKit.h"
 #include "SlaterModel.h"
 #include "SlaterRichText.h"
+#include "Styling/CoreStyle.h"
 #include "Widgets/Text/SRichTextBlock.h"
 
 namespace
@@ -45,6 +49,15 @@ namespace
 		Widget->SetRichText(Text, Stack);
 		Widget->SlatePrepass(1.f);
 		return Widget->GetDesiredSize();
+	}
+
+	/** The line height and the descent below the baseline of the font RtLaidOut uses, from the engine's font measure. */
+	void RtLineOf14(float& OutHeight, float& OutDescent)
+	{
+		const TSharedRef<FSlateFontMeasure> Measure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
+		const FSlateFontInfo Font = FCoreStyle::GetDefaultFontStyle(TEXT("Regular"), 14);
+		OutHeight = Measure->GetMaxCharacterHeight(Font, 1.f);
+		OutDescent = -Measure->GetBaseline(Font, 1.f);
 	}
 }
 
@@ -110,6 +123,99 @@ TEST_CLASS(SlaterRichTextTests, "BRS.SlaterUI.RichText")
 		ASSERT_THAT(IsTrue(Found->GetRuns()[0].Image == TEXT("icon0") && Found->GetRuns()[0].bImageFound));
 		ASSERT_THAT(IsTrue(Missing->GetRuns().Num() == 1 && !Missing->GetRuns()[0].bImageFound));
 		ASSERT_THAT(IsTrue(With >= Without + 7.9f));
+	}
+
+	TEST_METHOD(InlineImage_ByDefault_IsAsTallAsTheLine_AndCenteredOnIt)
+	{
+		float LineHeight = 0.f, Descent = 0.f;
+		RtLineOf14(LineHeight, Descent);
+		ASSERT_THAT(IsTrue(LineHeight > 0.f && Descent > 0.f));
+		Slater::SetImageSource(MakeShared<FSlaterTestImages>(4));
+		const TSharedRef<SSlaterRichText> Widget = RtLaidOut(TEXT("Cost <img src=\"icon0\"/>"));
+		const float WithImage = RtSizeOf(TEXT("Cost <img src=\"icon0\"/>")).Y;
+		const float TextOnly = RtSizeOf(TEXT("Cost ")).Y;
+		Slater::SetImageSource(nullptr);
+		ASSERT_THAT(IsTrue(Widget->GetRuns().Num() == 1));
+		const FSlaterRichRun& Run = Widget->GetRuns()[0];
+		// The 8x8 brush is drawn at the font's line height (square stays square), its bottom at the font's descent.
+		ASSERT_THAT(IsNear(LineHeight, float(Run.ImageSize.Y), 0.01f));
+		ASSERT_THAT(IsNear(LineHeight, float(Run.ImageSize.X), 0.01f));
+		ASSERT_THAT(IsNear(Descent, Run.ImageBaseline, 0.01f));
+		// So the image fills the line box exactly and the line is no taller than the words alone.
+		ASSERT_THAT(IsNear(TextOnly, WithImage, 0.5f));
+	}
+
+	TEST_METHOD(InlineImage_SizeAndBaseline_FromTheAttributes_PlaceItOnTheLine)
+	{
+		float LineHeight = 0.f, Descent = 0.f;
+		RtLineOf14(LineHeight, Descent);
+		const TSharedRef<FSlaterTestImages> Images = MakeShared<FSlaterTestImages>(4);
+		FSlateBrush Wide = Images->Brushes.FindChecked(TEXT("icon0"));
+		Wide.ImageSize = FVector2D(16.0, 8.0);
+		Images->Brushes.Add(TEXT("wide"), Wide);
+		Slater::SetImageSource(Images);
+		const TSharedRef<SSlaterRichText> Both = RtLaidOut(TEXT("Cost <img src=\"icon0\" size=\"24\" baseline=\"2\"/>"));
+		const TSharedRef<SSlaterRichText> SizeOnly = RtLaidOut(TEXT("Cost <img src=\"wide\" size=\"10\"/>"));
+		const TSharedRef<SSlaterRichText> Raised = RtLaidOut(TEXT("Cost <img src=\"icon0\" baseline=\"-3\"/>"));
+		const float BothHeight = RtSizeOf(TEXT("Cost <img src=\"icon0\" size=\"24\" baseline=\"2\"/>")).Y;
+		Slater::SetImageSource(nullptr);
+
+		ASSERT_THAT(IsTrue(Both->GetRuns().Num() == 1 && SizeOnly->GetRuns().Num() == 1 && Raised->GetRuns().Num() == 1));
+		ASSERT_THAT(IsTrue(Both->GetRuns()[0].ImageSize == FVector2D(24.0, 24.0)));
+		ASSERT_THAT(IsNear(2.f, Both->GetRuns()[0].ImageBaseline, 0.01f));
+		// The engine lays the line out from what is above and below the baseline: 22 above and 2 below for the image.
+		ASSERT_THAT(IsNear(FMath::Max(LineHeight - Descent, 22.f) + FMath::Max(Descent, 2.f), BothHeight, 0.5f));
+
+		// size alone: the width keeps the brush's aspect, and the image stays centered on the line.
+		ASSERT_THAT(IsTrue(SizeOnly->GetRuns()[0].ImageSize == FVector2D(20.0, 10.0)));
+		ASSERT_THAT(IsNear(Descent - (LineHeight - 10.f) * 0.5f, SizeOnly->GetRuns()[0].ImageBaseline, 0.01f));
+
+		// baseline alone: the line-high default size, raised above the baseline.
+		ASSERT_THAT(IsNear(LineHeight, float(Raised->GetRuns()[0].ImageSize.Y), 0.01f));
+		ASSERT_THAT(IsNear(-3.f, Raised->GetRuns()[0].ImageBaseline, 0.01f));
+	}
+
+	TEST_METHOD(InlineImage_Tint_MultipliesTheBrush_AndWithoutIt_KeepsItsColors)
+	{
+		FSlaterStyleStack Stack;
+		Slater::StyleLibrary().BuildStack(TEXT("Base"), Stack);
+		FLinearColor Danger;
+		ASSERT_THAT(IsTrue(Stack.FindColor(TEXT("UI.Color.Danger"), Danger)));
+		Slater::SetImageSource(MakeShared<FSlaterTestImages>(4));
+		const TSharedRef<SSlaterRichText> Tinted = RtLaidOut(TEXT("Cost <img src=\"icon0\" tint=\"UI.Color.Danger\"/> and <img src=\"icon1\"/>"));
+		const TSharedRef<SSlaterRichText> Bound = RtLaidOut(TEXT("Cost <img src=\"icon0\" tint=\"UI.Color.Nope\"/>"));
+		Slater::SetImageSource(nullptr);
+		ASSERT_THAT(AreEqual(2, Tinted->GetRuns().Num()));
+		ASSERT_THAT(AreEqual(Danger.ToString(), Tinted->GetRuns()[0].Color.ToString()));
+		ASSERT_THAT(AreEqual(FLinearColor::White.ToString(), Tinted->GetRuns()[1].Color.ToString()));
+		// In bound text an unknown token is not checked: the image keeps its own colors.
+		ASSERT_THAT(AreEqual(FLinearColor::White.ToString(), Bound->GetRuns()[0].Color.ToString()));
+	}
+
+	TEST_METHOD(InlineImage_SizeAndBaseline_InALayout_AreCheckedAtBuild)
+	{
+		const FSlaterBuildResult Good = RtBuild(TEXT("<vbox><rich-text>Cost &lt;img src=\"Gift\" size=\"16\" baseline=\"-1.5\" tint=\"UI.Color.Text\"/&gt; one</rich-text></vbox>"));
+		ASSERT_THAT(IsTrue(Good.Succeeded()));
+		const TCHAR* Cases[][2] = {
+			{TEXT("<img src=\"a\" size=\"0\"/>"), TEXT("not a number above 0")},
+			{TEXT("<img src=\"a\" size=\"-4\"/>"), TEXT("not a number above 0")},
+			{TEXT("<img src=\"a\" size=\"big\"/>"), TEXT("not a number above 0")},
+			{TEXT("<img src=\"a\" baseline=\"low\"/>"), TEXT("baseline=\"low\" is not a number")},
+			{TEXT("<img src=\"a\" width=\"3\"/>"), TEXT("no attribute 'width'")},
+			{TEXT("<img src=\"a\" tint=\"UI.Color.Txt\"/>"), TEXT("unknown color token 'UI.Color.Txt'")},
+		};
+		for (const TCHAR* const (&Case)[2] : Cases)
+		{
+			FSlaterStyleStack Stack;
+			Slater::StyleLibrary().BuildStack(TEXT("Base"), Stack);
+			TArray<FSlaterTextProblem> Problems;
+			Slater::CheckRichText(Case[0], Stack, Problems);
+			ASSERT_THAT(IsTrue(Problems.Num() == 1));
+			ASSERT_THAT(IsTrue(Problems[0].Message.Contains(Case[1])));
+		}
+		const FSlaterBuildResult Bad = RtBuild(TEXT("<vbox><rich-text>Cost &lt;img src=\"Gift\" size=\"tiny\"/&gt;</rich-text></vbox>"));
+		ASSERT_THAT(IsFalse(Bad.Succeeded()));
+		ASSERT_THAT(IsTrue(Bad.Errors.Num() == 1 && Bad.Errors[0].Message.Contains(TEXT("size=\"tiny\""))));
 	}
 
 	TEST_METHOD(UnknownTag_InBoundText_ShowsAsWritten_WithNoRun)
@@ -199,7 +305,8 @@ TEST_CLASS(SlaterRichTextTests, "BRS.SlaterUI.RichText")
 				}
 				Widget->GetChildren()->ForEachWidget([&](SWidget& Child) { Stack.Add(Child.AsShared()); });
 			}
-			ASSERT_THAT(AreEqual(2, Texts));
+			// The run sample, the image placement line (T-544), the bound description and the literal-bracket caption.
+			ASSERT_THAT(AreEqual(4, Texts));
 			ASSERT_THAT(IsTrue(bDescription));
 		}
 	}

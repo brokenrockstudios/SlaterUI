@@ -5,9 +5,13 @@
 #include "SlaterElements.h"
 #include "SlaterList.h"
 
+#include "Fonts/FontMeasure.h"
+#include "Framework/Application/SlateApplication.h"
 #include "Framework/Text/ITextDecorator.h"
 #include "Framework/Text/SlateImageRun.h"
 #include "Framework/Text/SlateTextRun.h"
+#include "Misc/DefaultValueHelper.h"
+#include "Rendering/SlateRenderer.h"
 #include "Styling/CoreStyle.h"
 #include "Styling/StyleDefaults.h"
 #include "Widgets/Text/SRichTextBlock.h"
@@ -45,6 +49,12 @@ namespace
 	bool IsRichNameChar(TCHAR C)
 	{
 		return IsWordChar(C) || C == TEXT('.') || C == TEXT('-');
+	}
+
+	/** A number written in an `img` attribute (`size`, `baseline`). */
+	bool ParseRichNumber(const FString* Value, float& Out)
+	{
+		return Value && FDefaultValueHelper::ParseFloat(*Value, Out);
 	}
 
 	void LineAndColumn(const FString& Text, int32 Index, int32& OutLine, int32& OutColumn)
@@ -242,7 +252,15 @@ namespace
 		}
 		else if (Tag.Name == TEXT("img"))
 		{
-			Only({TEXT("src")});
+			Only({TEXT("src"), TEXT("size"), TEXT("baseline"), TEXT("tint")});
+			if (const FString* Tint = Tag.Attributes.Find(TEXT("tint")))
+			{
+				FLinearColor Color;
+				if (!Style.FindColor(FName(**Tint), Color))
+				{
+					Problem(FString::Printf(TEXT("unknown color token '%s'%s"), **Tint, *Slater::DidYouMean(Style, ESlaterTokenKind::Color, *Tint)));
+				}
+			}
 			if (!Tag.bSelfClosing)
 			{
 				Problem(TEXT("<img> holds nothing: write <img src=\"Name\"/>"));
@@ -251,11 +269,68 @@ namespace
 			{
 				Problem(TEXT("<img> needs src=\"Name\", the name of an image"));
 			}
+			float Number = 0.f;
+			const FString* Size = Tag.Attributes.Find(TEXT("size"));
+			if (Size && !(ParseRichNumber(Size, Number) && Number > 0.f))
+			{
+				Problem(FString::Printf(TEXT("<img> size=\"%s\" is not a number above 0: it is the image's height, e.g. size=\"16\""), **Size));
+			}
+			const FString* Baseline = Tag.Attributes.Find(TEXT("baseline"));
+			if (Baseline && !ParseRichNumber(Baseline, Number))
+			{
+				Problem(FString::Printf(TEXT("<img> baseline=\"%s\" is not a number: it is how far the image's bottom sits below the text baseline, e.g. baseline=\"3\" (negative raises it)"), **Baseline));
+			}
 		}
 		else
 		{
 			Problem(FString::Printf(TEXT("unknown rich-text tag <%s>; the tags are b, i, font, color and img"), *Tag.Name));
 		}
+	}
+
+	/**
+	 * The engine's image run with a brush of its own: the run keeps only a pointer to its brush, and an `img` brush is a copy
+	 * of the source's with the laid-out size, so the run owns it, and so does every clone.
+	 */
+	class FSlaterImageRun : public FSlateImageRun
+	{
+	public:
+		FSlaterImageRun(const FRunInfo& InRunInfo, const TSharedRef<const FString>& InText, const TSharedRef<FSlateBrush>& InBrush, int16 InBaseline, const FTextRange& InRange)
+			: FSlateImageRun(InRunInfo, InText, &InBrush.Get(), InBaseline, InRange)
+			, OwnedText(InText)
+			, Brush(InBrush)
+			, OwnedBaseline(InBaseline)
+		{
+		}
+
+		virtual void Move(const TSharedRef<FString>& NewText, const FTextRange& NewRange) override
+		{
+			FSlateImageRun::Move(NewText, NewRange);
+			OwnedText = NewText;
+		}
+
+		virtual TSharedRef<IRun> Clone() const override
+		{
+			return MakeShared<FSlaterImageRun>(GetRunInfo(), OwnedText, Brush, OwnedBaseline, GetTextRange());
+		}
+
+	private:
+		TSharedRef<const FString> OwnedText;
+		TSharedRef<FSlateBrush> Brush;
+		int16 OwnedBaseline;
+	};
+
+	/** The font's line height and its descent below the baseline, unscaled; false when no font measure is available. */
+	bool MeasureLine(const FSlateFontInfo& Font, float& OutHeight, float& OutDescent)
+	{
+		const FSlateRenderer* Renderer = FSlateApplication::IsInitialized() ? FSlateApplication::Get().GetRenderer() : nullptr;
+		if (!Renderer)
+		{
+			return false;
+		}
+		const TSharedRef<FSlateFontMeasure> Measure = Renderer->GetFontMeasureService();
+		OutHeight = Measure->GetMaxCharacterHeight(Font, 1.f);
+		OutDescent = -Measure->GetBaseline(Font, 1.f);
+		return OutHeight > 0.f;
 	}
 
 	/** The decorator for all five tags. Reads only the snapshot, which the widget refreshes before each text. */
@@ -301,10 +376,38 @@ namespace
 				*InOutModelText += TEXT('\x200B'); // the zero-width space the engine's image decorator uses
 				ModelRange.EndIndex = InOutModelText->Len();
 				const FString* Src = Attributes.Find(TEXT("src"));
-				const FSlateBrush* Brush = Src ? Slater::FindImage(FName(**Src, FNAME_Find)) : nullptr;
+				const FSlateBrush* Found = Src ? Slater::FindImage(FName(**Src, FNAME_Find)) : nullptr;
 				Logged.Image = Src ? *Src : FString();
-				Logged.bImageFound = Brush != nullptr;
-				return FSlateImageRun::Create(Info, InOutModelText, Brush ? Brush : FStyleDefaults::GetNoBrush(), 0, ModelRange);
+				Logged.bImageFound = Found != nullptr;
+
+				// T-544: by default as tall as the font's line and centered on it, so an icon lines up with the words
+				// (the engine's own default is the brush's size sitting on the baseline, which rides high).
+				const TSharedRef<FSlateBrush> Brush = MakeShared<FSlateBrush>(Found ? *Found : *FStyleDefaults::GetNoBrush());
+				float LineHeight = 0.f, Descent = 0.f;
+				const bool bMeasured = MeasureLine(Snapshot->Base.Font, LineHeight, Descent);
+				float Height = 0.f;
+				if (!ParseRichNumber(Attributes.Find(TEXT("size")), Height) || Height <= 0.f)
+				{
+					Height = bMeasured ? LineHeight : Brush->ImageSize.Y;
+				}
+				float Below = 0.f;
+				if (!ParseRichNumber(Attributes.Find(TEXT("baseline")), Below))
+				{
+					Below = bMeasured ? Descent - (LineHeight - Height) * 0.5f : 0.f;
+				}
+				const float Aspect = Brush->ImageSize.Y > 0.f ? Brush->ImageSize.X / Brush->ImageSize.Y : 1.f;
+				Brush->ImageSize = FVector2f(Height * Aspect, Height);
+				// `tint` multiplies the picture, as on `image` (the stock icons are white); without it the image keeps its colors.
+				const FString* Tint = Attributes.Find(TEXT("tint"));
+				if (const FLinearColor* Color = Tint ? Snapshot->Colors.Find(*Tint) : nullptr)
+				{
+					Brush->TintColor = FSlateColor(*Color);
+				}
+				Logged.Color = Brush->TintColor.IsColorSpecified() ? Brush->TintColor.GetSpecifiedColor() : FLinearColor::White;
+				Logged.ImageSize = FVector2D(Brush->ImageSize);
+				Logged.ImageBaseline = Below;
+				// The engine's baseline is negative below the line.
+				return MakeShared<FSlaterImageRun>(Info, InOutModelText, Brush, static_cast<int16>(-FMath::RoundToInt(Below)), ModelRange);
 			}
 
 			Logged.Text = OriginalText.Mid(RunInfo.ContentRange.BeginIndex, RunInfo.ContentRange.EndIndex - RunInfo.ContentRange.BeginIndex);
@@ -488,7 +591,7 @@ void SSlaterRichText::SetRichText(const FString& Text, const ISlaterStyleSource&
 	ScanTags(Text, Tags, Ignored);
 	for (const FRichTag& Run : Tags)
 	{
-		const FString* Value = Run.Attributes.Find(TEXT("value"));
+		const FString* Value = Run.Attributes.Find(Run.Name == TEXT("img") ? TEXT("tint") : TEXT("value"));
 		if (!Value)
 		{
 			continue;
@@ -501,7 +604,7 @@ void SSlaterRichText::SetRichText(const FString& Text, const ISlaterStyleSource&
 				Snapshot->Fonts.Add(*Value, Font);
 			}
 		}
-		else if (Run.Name == TEXT("color"))
+		else if (Run.Name == TEXT("color") || Run.Name == TEXT("img"))
 		{
 			FLinearColor Color;
 			if (Style.FindColor(FName(**Value), Color))

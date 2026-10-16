@@ -61,7 +61,7 @@
 			<surface id="Footer" role="UI.Surface.Panel" inset="UI.Space.M" height="56">
 				<hbox>
 					<surface id="Avatar" role="UI.Surface.Button" inset="UI.Space.M" interactive="false" valign="center">
-						<image src="User" size="20"/>
+						<image src="User" size="20" tint="UI.Color.Text"/>
 					</surface>
 					<vbox valign="center" margin="UI.Space.M">
 						<text>You</text>
@@ -71,7 +71,7 @@
 					<!-- First child: the anchor. Second child: the menu. -->
 					<popup id="AccountMenu" placement="above" open-when="menu=true" valign="center">
 						<surface id="Chevron" role="UI.Surface.Button" inset="UI.Space.M" on-click="ui.toggle:menu" hover-set-state="sub=none">
-							<image src="ChevronUp" size="16"/>
+							<image src="ChevronUp" size="16" tint="UI.Color.Text"/>
 						</surface>
 						<surface id="Menu" role="UI.Surface.Menu" inset="UI.Space.S" width="250">
 							<vbox>

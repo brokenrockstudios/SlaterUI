@@ -121,6 +121,14 @@ namespace
 	const FName AttrMargin(TEXT("margin"));
 	const FName AttrHAlign(TEXT("halign"));
 	const FName AttrVAlign(TEXT("valign"));
+	const FName AttrAnchor(TEXT("anchor"));
+	const FName AttrOffset(TEXT("offset"));
+	const FName AttrSize(TEXT("size"));
+	const FName AttrAlign(TEXT("align"));
+	const FName AttrRow(TEXT("row"));
+	const FName AttrColumn(TEXT("column"));
+	const FName AttrRowSpan(TEXT("row-span"));
+	const FName AttrColumnSpan(TEXT("column-span"));
 
 	FSlaterAttrDesc MakeAttr(const TCHAR* Name, ESlaterAttrType Type, std::initializer_list<const TCHAR*> EnumWords = {})
 	{
@@ -131,6 +139,12 @@ namespace
 		{
 			Desc.EnumValues.Add(Word);
 		}
+		return Desc;
+	}
+
+	FSlaterAttrDesc WithCheck(FSlaterAttrDesc Desc, FString (*Check)(const FString&))
+	{
+		Desc.CheckText = Check;
 		return Desc;
 	}
 
@@ -159,6 +173,43 @@ namespace
 
 	bool IsSlotAttr(FName Name)
 	{
+		return Name == AttrFill || Name == AttrMargin || Name == AttrHAlign || Name == AttrVAlign
+			|| Name == AttrAnchor || Name == AttrOffset || Name == AttrSize || Name == AttrAlign
+			|| Name == AttrRow || Name == AttrColumn || Name == AttrRowSpan || Name == AttrColumnSpan;
+	}
+
+	/** Two plain numbers, `"x, y"`; false with a reason otherwise. */
+	bool ParseNumberPair(const FString& Text, FVector2D& OutPair, FString* OutProblem = nullptr)
+	{
+		TArray<FString> Parts;
+		Text.ParseIntoArray(Parts, TEXT(","), true);
+		if (Parts.Num() == 2)
+		{
+			const FString X = Parts[0].TrimStartAndEnd();
+			const FString Y = Parts[1].TrimStartAndEnd();
+			if (X.IsNumeric() && Y.IsNumeric())
+			{
+				OutPair = FVector2D(FCString::Atod(*X), FCString::Atod(*Y));
+				return true;
+			}
+		}
+		if (OutProblem)
+		{
+			*OutProblem = FString::Printf(TEXT("'%s' is not two numbers: write them as x, y, for example \"8, 12\""), *Text);
+		}
+		return false;
+	}
+
+	FString CheckNumberPair(const FString& Text)
+	{
+		FVector2D Pair;
+		FString Problem;
+		return ParseNumberPair(Text, Pair, &Problem) ? FString() : Problem;
+	}
+
+	/** The four slot attributes every parent shares; an element cannot declare its own with these names. The canvas and grid ones (`size`, `row`, ...) yield to an element's own attribute of that name. */
+	bool IsCoreSlotAttr(FName Name)
+	{
 		return Name == AttrFill || Name == AttrMargin || Name == AttrHAlign || Name == AttrVAlign;
 	}
 
@@ -167,7 +218,15 @@ namespace
 		if (Name == AttrFill) return ESlaterSlotAttrs::Fill;
 		if (Name == AttrMargin) return ESlaterSlotAttrs::Margin;
 		if (Name == AttrHAlign) return ESlaterSlotAttrs::HAlign;
-		return ESlaterSlotAttrs::VAlign;
+		if (Name == AttrVAlign) return ESlaterSlotAttrs::VAlign;
+		if (Name == AttrAnchor) return ESlaterSlotAttrs::Anchor;
+		if (Name == AttrOffset) return ESlaterSlotAttrs::Offset;
+		if (Name == AttrSize) return ESlaterSlotAttrs::Size;
+		if (Name == AttrAlign) return ESlaterSlotAttrs::Align;
+		if (Name == AttrRow) return ESlaterSlotAttrs::Row;
+		if (Name == AttrColumn) return ESlaterSlotAttrs::Column;
+		if (Name == AttrRowSpan) return ESlaterSlotAttrs::RowSpan;
+		return ESlaterSlotAttrs::ColumnSpan;
 	}
 
 	FString JoinNames(const TArray<FString>& Names)
@@ -552,8 +611,10 @@ namespace
 			{
 				AttrDesc = Slater::CommonAttributes().FindByPredicate([&](const FSlaterAttrDesc& D) { return D.Name == AttrName; });
 			}
+			bool bSlotAttr = false;
 			if (!AttrDesc && !AttrName.IsNone() && IsSlotAttr(AttrName))
 			{
+				bSlotAttr = true;
 				if (!ParentDesc)
 				{
 					Error(Attr.Pos, FString::Printf(TEXT("'%s' is a slot attribute, and the root element <%s> has no parent slot"), *Attr.Name, *Node.Tag));
@@ -717,12 +778,50 @@ namespace
 				}
 				Ids.Add(IdName, Attr.Pos);
 			}
-			if (IsSlotAttr(AttrName))
+			if (bSlotAttr && (AttrName == AttrRow || AttrName == AttrColumn) && Value.Integer < 0)
+			{
+				Error(Attr.Pos, FString::Printf(TEXT("'%s' counts from 0 and must not be negative"), *Attr.Name));
+				continue;
+			}
+			if (bSlotAttr && (AttrName == AttrRowSpan || AttrName == AttrColumnSpan) && Value.Integer < 1)
+			{
+				Error(Attr.Pos, FString::Printf(TEXT("'%s' is the number of cells covered and must be 1 or more"), *Attr.Name));
+				continue;
+			}
+			if (bSlotAttr && AttrName == AttrSize)
+			{
+				FVector2D Size;
+				ParseNumberPair(Value.Text, Size);
+				if (Size.X < 0.0 || Size.Y < 0.0)
+				{
+					Error(Attr.Pos, TEXT("'size' must not be negative"));
+					continue;
+				}
+			}
+			if (bSlotAttr)
 			{
 				if (AttrName == AttrFill) OutSlot.Fill = Value.Number;
 				else if (AttrName == AttrMargin) OutSlot.Margin = Value.Number;
 				else if (AttrName == AttrHAlign) OutSlot.HAlign = Value.Word == TEXT("left") ? HAlign_Left : Value.Word == TEXT("center") ? HAlign_Center : Value.Word == TEXT("right") ? HAlign_Right : HAlign_Fill;
-				else OutSlot.VAlign = Value.Word == TEXT("top") ? VAlign_Top : Value.Word == TEXT("center") ? VAlign_Center : Value.Word == TEXT("bottom") ? VAlign_Bottom : VAlign_Fill;
+				else if (AttrName == AttrVAlign) OutSlot.VAlign = Value.Word == TEXT("top") ? VAlign_Top : Value.Word == TEXT("center") ? VAlign_Center : Value.Word == TEXT("bottom") ? VAlign_Bottom : VAlign_Fill;
+				else if (AttrName == AttrAnchor) OutSlot.Anchor = Value.Word;
+				else if (AttrName == AttrOffset) ParseNumberPair(Value.Text, OutSlot.Offset);
+				else if (AttrName == AttrSize)
+				{
+					FVector2D Size;
+					ParseNumberPair(Value.Text, Size);
+					OutSlot.Size = Size;
+				}
+				else if (AttrName == AttrAlign)
+				{
+					FVector2D Align;
+					ParseNumberPair(Value.Text, Align);
+					OutSlot.Align = Align;
+				}
+				else if (AttrName == AttrRow) OutSlot.Row = Value.Integer;
+				else if (AttrName == AttrColumn) OutSlot.Column = Value.Integer;
+				else if (AttrName == AttrRowSpan) OutSlot.RowSpan = Value.Integer;
+				else OutSlot.ColumnSpan = Value.Integer;
 			}
 			else
 			{
@@ -1127,6 +1226,14 @@ namespace Slater
 			MakeAttr(TEXT("margin"), ESlaterAttrType::Metric),
 			MakeAttr(TEXT("halign"), ESlaterAttrType::Enum, {TEXT("fill"), TEXT("left"), TEXT("center"), TEXT("right")}),
 			MakeAttr(TEXT("valign"), ESlaterAttrType::Enum, {TEXT("fill"), TEXT("top"), TEXT("center"), TEXT("bottom")}),
+			MakeAttr(TEXT("anchor"), ESlaterAttrType::Enum, {TEXT("top-left"), TEXT("top"), TEXT("top-right"), TEXT("left"), TEXT("center"), TEXT("right"), TEXT("bottom-left"), TEXT("bottom"), TEXT("bottom-right"), TEXT("top-wide"), TEXT("bottom-wide"), TEXT("left-tall"), TEXT("right-tall"), TEXT("fill")}),
+			WithCheck(MakeAttr(TEXT("offset"), ESlaterAttrType::Text), &CheckNumberPair),
+			WithCheck(MakeAttr(TEXT("size"), ESlaterAttrType::Text), &CheckNumberPair),
+			WithCheck(MakeAttr(TEXT("align"), ESlaterAttrType::Text), &CheckNumberPair),
+			MakeAttr(TEXT("row"), ESlaterAttrType::Int),
+			MakeAttr(TEXT("column"), ESlaterAttrType::Int),
+			MakeAttr(TEXT("row-span"), ESlaterAttrType::Int),
+			MakeAttr(TEXT("column-span"), ESlaterAttrType::Int),
 		};
 		return Attributes;
 	}
@@ -1145,6 +1252,7 @@ namespace Slater
 			bFilled = true;
 			RegisterLayoutElements(Registry);
 			RegisterContentElements(Registry);
+			RegisterPanelElements(Registry);
 			RegisterListElements(Registry);
 			RegisterControlElements(Registry);
 			RegisterPopupElements(Registry);
@@ -1448,7 +1556,7 @@ bool FSlaterElementRegistry::Register(FSlaterElementDesc Desc, FString* OutError
 			return Fail(FString::Printf(TEXT("<%s>: attribute '%s' is declared twice"), *Tag, *Name));
 		}
 		Seen.Add(Attr.Name);
-		if (Slater::CommonAttributes().ContainsByPredicate([&](const FSlaterAttrDesc& D) { return D.Name == Attr.Name; }) || IsSlotAttr(Attr.Name))
+		if (Slater::CommonAttributes().ContainsByPredicate([&](const FSlaterAttrDesc& D) { return D.Name == Attr.Name; }) || IsCoreSlotAttr(Attr.Name))
 		{
 			return Fail(FString::Printf(TEXT("<%s>: '%s' is a common or slot attribute and cannot be redeclared"), *Tag, *Name));
 		}

@@ -2,6 +2,16 @@
 
 Version format `YYMM.DDRR` (year, month, day, revision of that day). Newest first. Keep entries to one line where possible.
 
+## 2610.1601
+
+- `canvas` (over `SConstraintCanvas`: `anchor`, `offset`, `size`, `align` on a child), `grid` (over `SGridPanel`: `row`, `column`, `row-span`, `column-span` on a child, `gap`, `column-fill`, `row-fill`) and `safe-zone` (over `SSafeZone`: `title-safe`, `pad-*`) elements (T-529). The new slot attributes are accepted on the right parent only; an element's own attribute of the same name wins. Tests `BRS.SlaterUI.Panels.*`. Registered by `Slater::RegisterPanelElements`.
+
+## 2610.1511
+
+- `rich-text` `<img>` placement (T-544): by default an inline image is as tall as the font's line and centered on it (it used to sit on the baseline at the brush's size, riding high); `size` (height, width keeps the aspect) and `baseline` (how far the bottom sits below the text baseline) override it, checked at build. `tint` (a color token, as on `image`) multiplies the picture, so white icons show on a light style; without it the image keeps its colors. `FSlaterRichRun` reports `ImageSize`, `ImageBaseline` and the tint as `Color`. `Layouts/RichText.sltr` has a placement line, and the sample test counts its four rich texts.
+- Samples: the white line icons of `Account.sltr` (card icons `UI.Color.Text`, External arrow `UI.Color.Accent`) and the `User` and `ChevronUp` icons of `ContextMenu.sltr` and `ContextMenuPopup.sltr` take a `tint`, so they show in `Base` (T-544). Test `Account.TheWhiteLineIcons_TakeTheStyleColors_AndTheAvatarKeepsItsOwn`.
+- `SlaterContentElements.cpp`: the file-local `Attr` helper is now `ContentAttr`, so it no longer meets the `Slater::Attr` namespace in a unity build (T-544).
+
 ## 2610.1510
 
 - `scale` element (T-528) over `SScaleBox` (`stretch` none/fit/fill/stretch/user, `scale`), `throbber` over `SCircularThrobber` (`color`, `size`), and `tint` on `image`. Tests `BRS.SlaterUI.ImageSizing.*`. Shared attribute names moved to `Private/SlaterAttrNames.h` (`Slater::Attr::`) after file-scope name clashes in the unity build; RichText's `IsNameChar` renamed.

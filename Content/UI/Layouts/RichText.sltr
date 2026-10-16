@@ -1,10 +1,12 @@
 <?xml version="1.0"?>
-<!-- Rich text (T-527): run tags inside the text. The tag brackets are written as entities in a file (&lt;b&gt;), the run closes with &lt;/&gt;; the second text is bound, so its data holds real tags. -->
+<!-- Rich text (T-527, T-544): run tags inside the text. The tag brackets are written as entities in a file (&lt;b&gt;), the run closes with &lt;/&gt;; the second text is bound, so its data holds real tags. An img is as tall as the line and centered on it unless size (height) or baseline (how far its bottom sits below the text baseline) say otherwise; the icons are white, so tint gives them the text color. -->
 <surface role="UI.Surface.Panel" inset="UI.Space.L" width="360">
 	<vbox>
 		<text font="UI.Font.Heading">Rich text</text>
 		<spacer height="UI.Space.M"/>
-		<rich-text wrap="true">A &lt;b&gt;sharp&lt;/&gt; blade, &lt;i&gt;light&lt;/&gt; in the hand. Deals &lt;color value="UI.Color.Danger"&gt;12 damage&lt;/&gt; and costs &lt;img src="Gift"/&gt; one gift. &lt;font value="UI.Font.Heading"&gt;Big&lt;/&gt; finish.</rich-text>
+		<rich-text wrap="true">A &lt;b&gt;sharp&lt;/&gt; blade, &lt;i&gt;light&lt;/&gt; in the hand. Deals &lt;color value="UI.Color.Danger"&gt;12 damage&lt;/&gt; and costs &lt;img src="Gift" tint="UI.Color.Text"/&gt; one gift. &lt;font value="UI.Font.Heading"&gt;Big&lt;/&gt; finish.</rich-text>
+		<spacer height="UI.Space.S"/>
+		<rich-text wrap="true">Icons follow the line: &lt;img src="Gift" tint="UI.Color.Text"/&gt; by default, &lt;img src="Gift" tint="UI.Color.Text" size="24"/&gt; with size, &lt;img src="Gift" tint="UI.Color.Text" size="12" baseline="0"/&gt; on the baseline.</rich-text>
 		<spacer height="UI.Space.M"/>
 		<rule/>
 		<spacer height="UI.Space.M"/>

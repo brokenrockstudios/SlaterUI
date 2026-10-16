@@ -21,6 +21,8 @@ public:
 	TSharedPtr<FSliderStyle> Slider;
 	TSharedPtr<FCheckBoxStyle> CheckBox;
 	TSharedPtr<FEditableTextBoxStyle> TextBox;
+	/** True when the `textbox` was built over `SMultiLineEditableTextBox` (`multiline`) instead of `SEditableTextBox`. */
+	bool bMultiLine = false;
 };
 
 namespace Slater

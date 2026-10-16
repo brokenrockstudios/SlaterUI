@@ -10,6 +10,7 @@
 #include "Styling/SlateTypes.h"
 #include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SEditableTextBox.h"
+#include "Widgets/Input/SMultiLineEditableTextBox.h"
 #include "Widgets/Input/SSegmentedControl.h"
 #include "Widgets/Input/SSlider.h"
 #include "Widgets/Input/SSpinBox.h"
@@ -31,6 +32,16 @@ namespace
 		FSlaterAttrDesc Desc;
 		Desc.Name = Name;
 		Desc.Type = Type;
+		return Desc;
+	}
+
+	FSlaterAttrDesc ControlEnumAttr(const TCHAR* Name, std::initializer_list<const TCHAR*> Words)
+	{
+		FSlaterAttrDesc Desc = ControlAttr(Name, ESlaterAttrType::Enum);
+		for (const TCHAR* Word : Words)
+		{
+			Desc.EnumValues.Add(Word);
+		}
 		return Desc;
 	}
 
@@ -337,16 +348,33 @@ namespace
 
 	// ---- textbox ----
 
+	bool IsMultiLineBox(const SWidget& Widget)
+	{
+		const TSharedPtr<FSlaterControlLook> Look = Widget.GetMetaData<FSlaterControlLook>();
+		return Look.IsValid() && Look->bMultiLine;
+	}
+
 	FSlaterBindTarget TextBoxTextBind()
 	{
 		FSlaterBindTarget Target;
 		Target.Apply = [](SWidget& Widget, const FSlaterValue& Value, const ISlaterStyleSource&)
 		{
+			if (IsMultiLineBox(Widget))
+			{
+				static_cast<SMultiLineEditableTextBox&>(Widget).SetText(FText::FromString(Value.Text));
+				return;
+			}
 			static_cast<SEditableTextBox&>(Widget).SetText(FText::FromString(Value.Text));
 		};
 		Target.ApplyPolled = [](SWidget& Widget, TFunction<FSlaterValue()> Get, const ISlaterStyleSource&)
 		{
-			static_cast<SEditableTextBox&>(Widget).SetText(TAttribute<FText>::CreateLambda([Get = MoveTemp(Get)]() { return FText::FromString(Get().Text); }));
+			const TAttribute<FText> Text = TAttribute<FText>::CreateLambda([Get = MoveTemp(Get)]() { return FText::FromString(Get().Text); });
+			if (IsMultiLineBox(Widget))
+			{
+				static_cast<SMultiLineEditableTextBox&>(Widget).SetText(Text);
+				return;
+			}
+			static_cast<SEditableTextBox&>(Widget).SetText(Text);
 		};
 		return Target;
 	}
@@ -381,25 +409,64 @@ namespace
 		BoxStyle->SetReadOnlyForegroundColor(FSlateColor(TextColor));
 		BoxStyle->SetFocusedForegroundColor(FSlateColor(TextColor));
 		BoxStyle->TextStyle.SetColorAndOpacity(FSlateColor(TextColor));
-		const TSharedRef<SEditableTextBox> Box = SNew(SEditableTextBox)
-			.Style(&*BoxStyle)
-			.Text(FText::FromString(Context.GetText(TEXT("text"))))
-			.HintText(FText::FromString(Context.GetText(TEXT("hint"))))
-			.Font(FCoreStyle::GetDefaultFontStyle(Font.Role, Font.Size))
-			.OnTextChanged_Lambda([Sink](const FText& Text) { Sink->Fire(Slater::Attr::OnChange, Text.ToString()); })
-			.OnTextCommitted_Lambda([Sink](const FText& Text, ETextCommit::Type How)
+		const bool bMultiLine = Context.GetBool(TEXT("multiline"));
+		if (bMultiLine && Context.GetBool(TEXT("password")))
+		{
+			Context.Failure = TEXT("<textbox> password and multiline cannot be combined: a password is one line");
+			return nullptr;
+		}
+		const FName Justify = Context.GetEnum(TEXT("justify"), TEXT("left"));
+		const ETextJustify::Type Justification = Justify == TEXT("center") ? ETextJustify::Center : Justify == TEXT("right") ? ETextJustify::Right : ETextJustify::Left;
+		const bool bReadOnly = Context.GetBool(TEXT("readonly"));
+		const bool bSelectAll = Context.GetBool(TEXT("select-all-on-focus"));
+		const bool bRevert = Context.GetBool(TEXT("revert-on-escape"));
+		const auto OnChanged = [Sink](const FText& Text) { Sink->Fire(Slater::Attr::OnChange, Text.ToString()); };
+		// In a multi-line box Enter makes a new line, so on-commit fires only when focus leaves.
+		const auto OnCommitted = [Sink](const FText& Text, ETextCommit::Type How)
+		{
+			// Enter or leaving the box keeps the text; Escape (OnCleared) puts the old text back, which is not a commit.
+			if (How == ETextCommit::OnEnter || How == ETextCommit::OnUserMovedFocus)
 			{
-				// Enter or leaving the box keeps the text; Escape (OnCleared) puts the old text back, which is not a commit.
-				if (How == ETextCommit::OnEnter || How == ETextCommit::OnUserMovedFocus)
-				{
-					Sink->Fire(ControlOnCommit, Text.ToString());
-				}
-			});
-		Slater::AttachEventSink(*Box, Sink);
+				Sink->Fire(ControlOnCommit, Text.ToString());
+			}
+		};
+		TSharedPtr<SWidget> Result;
+		if (bMultiLine)
+		{
+			Result = SNew(SMultiLineEditableTextBox)
+				.Style(&*BoxStyle)
+				.Text(FText::FromString(Context.GetText(TEXT("text"))))
+				.HintText(FText::FromString(Context.GetText(TEXT("hint"))))
+				.Font(FCoreStyle::GetDefaultFontStyle(Font.Role, Font.Size))
+				.IsReadOnly(bReadOnly)
+				.SelectAllTextWhenFocused(bSelectAll)
+				.RevertTextOnEscape(bRevert)
+				.Justification(Justification)
+				.AutoWrapText(true)
+				.OnTextChanged_Lambda(OnChanged)
+				.OnTextCommitted_Lambda(OnCommitted);
+		}
+		else
+		{
+			Result = SNew(SEditableTextBox)
+				.Style(&*BoxStyle)
+				.Text(FText::FromString(Context.GetText(TEXT("text"))))
+				.HintText(FText::FromString(Context.GetText(TEXT("hint"))))
+				.Font(FCoreStyle::GetDefaultFontStyle(Font.Role, Font.Size))
+				.IsReadOnly(bReadOnly)
+				.IsPassword(Context.GetBool(TEXT("password")))
+				.SelectAllTextWhenFocused(bSelectAll)
+				.RevertTextOnEscape(bRevert)
+				.Justification(Justification)
+				.OnTextChanged_Lambda(OnChanged)
+				.OnTextCommitted_Lambda(OnCommitted);
+		}
+		Slater::AttachEventSink(*Result, Sink);
 		const TSharedRef<FSlaterControlLook> Look = MakeShared<FSlaterControlLook>();
 		Look->TextBox = BoxStyle;
-		KeepControlLook(*Box, Look);
-		return Box;
+		Look->bMultiLine = bMultiLine;
+		KeepControlLook(*Result, Look);
+		return Result;
 	}
 }
 
@@ -477,6 +544,12 @@ void Slater::RegisterControlElements(FSlaterElementRegistry& Registry)
 		ControlWithBind(ControlAttr(TEXT("text"), ESlaterAttrType::Text), TextBoxTextBind()),
 		ControlAttr(TEXT("hint"), ESlaterAttrType::Text),
 		ControlAttr(TEXT("font"), ESlaterAttrType::Font),
+		ControlAttr(TEXT("password"), ESlaterAttrType::Bool),
+		ControlAttr(TEXT("readonly"), ESlaterAttrType::Bool),
+		ControlAttr(TEXT("multiline"), ESlaterAttrType::Bool),
+		ControlAttr(TEXT("select-all-on-focus"), ESlaterAttrType::Bool),
+		ControlAttr(TEXT("revert-on-escape"), ESlaterAttrType::Bool),
+		ControlEnumAttr(TEXT("justify"), {TEXT("left"), TEXT("center"), TEXT("right")}),
 		EventAttribute(TEXT("on-change")),
 		EventAttribute(TEXT("on-commit")),
 	};
