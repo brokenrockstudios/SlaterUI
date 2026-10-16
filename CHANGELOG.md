@@ -2,6 +2,22 @@
 
 Version format `YYMM.DDRR` (year, month, day, revision of that day). Newest first. Keep entries to one line where possible.
 
+## 2610.1510
+
+- `scale` element (T-528) over `SScaleBox` (`stretch` none/fit/fill/stretch/user, `scale`), `throbber` over `SCircularThrobber` (`color`, `size`), and `tint` on `image`. Tests `BRS.SlaterUI.ImageSizing.*`. Shared attribute names moved to `Private/SlaterAttrNames.h` (`Slater::Attr::`) after file-scope name clashes in the unity build; RichText's `IsNameChar` renamed.
+
+## 2610.1509
+
+- `rich-text` element (T-527) over `SRichTextBlock`: run tags `<b>`, `<i>`, `<font value="token">`, `<color value="token">` (closed with `</>`) and `<img src="Name"/>` (the installed image source); written with entities in `.sltr` (`&lt;b&gt;`), real tags in bound `{Path}` text. Bad markup is refused at its line and column (new `FSlaterElementDesc::CheckContent`, `FSlaterTextProblem`). New `SSlaterRichText` (`SetRichText`, `GetRuns`), `Slater::CheckRichText`, `Slater::RegisterRichTextElements`. Sample `Layouts/RichText.sltr` with `RichText.mock.json`. Tests `BRS.SlaterUI.RichText.*`.
+
+## 2610.1508
+
+- `spinbox` and `segmented` elements (T-526): `spinbox` over `SSpinBox<float>` (`value` may be `{Path}`, `min` 0, `max` 100, `step` 1, `on-change` while dragging or typing, `on-commit` when set; the engine clamps to the range) and `segmented` over `SSegmentedControl<FString>` (`options="A, B, C"`, `selected` may be `{Path}`, `on-change` gets the option; no usable option is refused). Tests `BRS.SlaterUI.Controls.Input.*`.
+
+## 2610.1507
+
+- `combo` and `option` elements over the engine's `SComboBox` (T-525): `<option value="..">Label</option>` children or a `options="a|Label, b"` list (also `{Path}`), `selected` (may be `{Path}`), `hint`, `font`, `on-change` (the picked value; moving the data fires nothing); look from the `TextBox` and `Menu` surface tokens, menu flips at the window edge (`FitInWindow`, T-439); a literal `selected` no option has, a duplicate value, a non-`option` child or both sources is refused at build with its line. Sample `Layouts/Combo.sltr`. Tests `BRS.SlaterUI.Combo`.
+
 ## 2610.1506
 
 - `popup` element over `SMenuAnchor` (T-439): first child the anchor, second the menu; `placement=above|below|right`, `open-when="key=value"` (opens while the view state matches) and `close-state` (written when the engine closes it; defaults to `key=false` for `open-when="key=true"`), or a plain click on the anchor with the `SComboButton` click rule; `FitInWindow(true)`, no Slate focus on rows, a submenu is a nested popup that closes with its parent. New `SSlaterPopup`, `SSlaterPopupMenu`, `Slater::RegisterPopupElements`, `FSlaterStateCondition::bPopup`; `Slater::FindOwningView` (and the surface's `hover-set-state`) now reaches the view from inside a popup's menu. Sample `Layouts/ContextMenuPopup.sltr` (same rows as `ContextMenu.sltr`). Tests `BRS.SlaterUI.Popup.*`.

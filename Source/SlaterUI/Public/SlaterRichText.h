@@ -11,6 +11,21 @@
 class SRichTextBlock;
 struct FSlaterRichSnapshot;
 
+/** A styled run the decorators made for the current text, for tests and probes. Plain stretches are not listed. */
+struct FSlaterRichRun
+{
+	/** `b`, `i`, `font`, `color` or `img`. */
+	FString Tag;
+	/** The words of the run; empty for an image. */
+	FString Text;
+	FName FontRole;
+	int32 FontSize = 0;
+	FLinearColor Color = FLinearColor::White;
+	/** For `img`: the name written in `src` and whether the image source had it. */
+	FString Image;
+	bool bImageFound = false;
+};
+
 namespace Slater
 {
 	/**
@@ -55,6 +70,9 @@ public:
 
 	const FString& GetSource() const { return Source; }
 	TSharedPtr<SRichTextBlock> GetBlock() const { return Block; }
+
+	/** The styled runs of the text as laid out. The layout happens on the first size query or paint, so call `SlatePrepass` first. */
+	const TArray<FSlaterRichRun>& GetRuns() const;
 
 private:
 	FString Source;

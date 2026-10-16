@@ -1,0 +1,17 @@
+<?xml version="1.0"?>
+<!-- Rich text (T-527): run tags inside the text. The tag brackets are written as entities in a file (&lt;b&gt;), the run closes with &lt;/&gt;; the second text is bound, so its data holds real tags. -->
+<surface role="UI.Surface.Panel" inset="UI.Space.L" width="360">
+	<vbox>
+		<text font="UI.Font.Heading">Rich text</text>
+		<spacer height="UI.Space.M"/>
+		<rich-text wrap="true">A &lt;b&gt;sharp&lt;/&gt; blade, &lt;i&gt;light&lt;/&gt; in the hand. Deals &lt;color value="UI.Color.Danger"&gt;12 damage&lt;/&gt; and costs &lt;img src="Gift"/&gt; one gift. &lt;font value="UI.Font.Heading"&gt;Big&lt;/&gt; finish.</rich-text>
+		<spacer height="UI.Space.M"/>
+		<rule/>
+		<spacer height="UI.Space.M"/>
+		<text font="UI.Font.Caption" color="UI.Color.TextMuted">From data:</text>
+		<spacer height="UI.Space.S"/>
+		<rich-text wrap="true">{Description}</rich-text>
+		<spacer height="UI.Space.M"/>
+		<rich-text font="UI.Font.Caption" color="UI.Color.TextMuted" wrap="true">A literal angle bracket: HP &lt; 5, or the tag &amp;lt;b&amp;gt; written out.</rich-text>
+	</vbox>
+</surface>

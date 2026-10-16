@@ -1,0 +1,5 @@
+{
+	"Quality": "high",
+	"Mode": "windowed",
+	"Modes": "fullscreen|Fullscreen, windowed|Windowed, borderless|Borderless window"
+}

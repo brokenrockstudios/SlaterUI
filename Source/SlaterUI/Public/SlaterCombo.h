@@ -74,6 +74,8 @@ public:
 	FString GetSelectedValue() const;
 	const TArray<FOptionPtr>& GetOptions() const { return Options; }
 	bool IsMenuOpen() const;
+	/** True when the menu was told to flip at the window edge (T-439; the engine keeps the flag to itself). */
+	bool FitsInWindow() const { return bFitsInWindow; }
 	/** What the closed box shows: the selected option's label, else the hint. */
 	FText GetShownText() const;
 
@@ -100,6 +102,7 @@ private:
 	TFunction<FString()> OptionsGetter;
 	FString LastOptionsText;
 	bool bSettingFromCode = false;
+	bool bFitsInWindow = false;
 
 	TSharedRef<SWidget> MakeRow(FOptionPtr Option) const;
 	void HandleSelectionChanged(FOptionPtr Picked, ESelectInfo::Type How);

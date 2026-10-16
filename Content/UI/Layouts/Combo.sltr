@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<!-- The combo element (T-525): a pick-one list. The first uses <option> children, the second a bound `options` list; both write the pick back. With Combo.mock.json the preview tab writes into the mock data. -->
+<surface role="UI.Surface.Panel" inset="UI.Space.L" width="360">
+	<vbox>
+		<text font="UI.Font.Heading">Graphics</text>
+		<spacer height="UI.Space.L"/>
+		<text>Quality</text>
+		<spacer height="UI.Space.S"/>
+		<combo selected="{Quality}" on-change="{Quality}" hint="Pick a quality">
+			<option value="low">Low</option>
+			<option value="high">High</option>
+			<option value="ultra">Ultra</option>
+		</combo>
+		<spacer height="UI.Space.M"/>
+		<text>Window mode (a bound list)</text>
+		<spacer height="UI.Space.S"/>
+		<combo options="{Modes}" selected="{Mode}" on-change="{Mode}" hint="Pick a mode"/>
+		<spacer height="UI.Space.S"/>
+		<text font="UI.Font.Caption" color="UI.Color.TextMuted">{Quality} / {Mode}</text>
+	</vbox>
+</surface>

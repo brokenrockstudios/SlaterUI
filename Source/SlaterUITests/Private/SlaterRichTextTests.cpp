@@ -25,6 +25,17 @@ namespace
 		return Result.Root.IsValid() ? StaticCastSharedPtr<SSlaterRichText>(SlaterListKit::Find(Result.Root.ToSharedRef(), TEXT("SSlaterRichText"))) : nullptr;
 	}
 
+	/** A widget with the text set and laid out (the engine builds the runs on the first size query). */
+	TSharedRef<SSlaterRichText> RtLaidOut(const FString& Text)
+	{
+		FSlaterStyleStack Stack;
+		Slater::StyleLibrary().BuildStack(TEXT("Base"), Stack);
+		const TSharedRef<SSlaterRichText> Widget = SNew(SSlaterRichText).Font(FSlaterFont{TEXT("Regular"), 14});
+		Widget->SetRichText(Text, Stack);
+		Widget->SlatePrepass(1.f);
+		return Widget;
+	}
+
 	/** The widget's size for a text, laid out by the engine, against the Base style. */
 	FVector2D RtSizeOf(const FString& Text)
 	{
@@ -58,32 +69,53 @@ TEST_CLASS(SlaterRichTextTests, "BRS.SlaterUI.RichText")
 		ASSERT_THAT(IsTrue(Widget->GetDesiredSize().X > 0.f && Widget->GetDesiredSize().Y > 0.f));
 	}
 
-	TEST_METHOD(BoldRun_ShowsOnlyTheWords_AndIsWiderThanThePlainRun)
+	TEST_METHOD(BoldRun_IsOneStyledRun_WithTheBoldRole)
 	{
-		const float Plain = RtSizeOf(TEXT("Hit hard")).X;
-		const float Bold = RtSizeOf(TEXT("Hit <b>hard</>")).X;
-		const float Literal = RtSizeOf(TEXT("Hit <x>hard</>")).X; // an unknown tag is shown as written
-		ASSERT_THAT(IsTrue(Bold > Plain));
-		ASSERT_THAT(IsTrue(Bold < Literal));
+		const TSharedRef<SSlaterRichText> Widget = RtLaidOut(TEXT("Hit <b>hard</> now"));
+		ASSERT_THAT(IsTrue(Widget->GetRuns().Num() == 1));
+		const FSlaterRichRun& Run = Widget->GetRuns()[0];
+		ASSERT_THAT(IsTrue(Run.Tag == TEXT("b") && Run.Text == TEXT("hard")));
+		ASSERT_THAT(IsTrue(Run.FontRole == TEXT("Bold") && Run.FontSize == 14));
 	}
 
 	TEST_METHOD(ItalicColorAndFontRuns_UseTheStyleTokens)
 	{
-		const FSlaterBuildResult Result = RtBuild(TEXT("<vbox><rich-text>A <i>light</> and <color value=\"UI.Color.Danger\">red</> and <font value=\"UI.Font.Heading\">big</> word</rich-text></vbox>"));
+		const FSlaterBuildResult Result = RtBuild(TEXT("<vbox><rich-text>A &lt;i&gt;light&lt;/&gt; and &lt;color value=\"UI.Color.Danger\"&gt;red&lt;/&gt; and &lt;font value=\"UI.Font.Heading\"&gt;big&lt;/&gt; word</rich-text></vbox>"));
 		ASSERT_THAT(IsTrue(Result.Succeeded()));
-		// The heading font is 20 high against the body's 14, so the line is taller than the same words without the font run.
-		const float WithFont = RtSizeOf(TEXT("a <font value=\"UI.Font.Heading\">big</> word")).Y;
-		const float Without = RtSizeOf(TEXT("a big word")).Y;
-		ASSERT_THAT(IsTrue(WithFont > Without));
+		Result.Root->SlatePrepass(1.f);
+		const TArray<FSlaterRichRun>& Runs = RtWidget(Result)->GetRuns();
+		ASSERT_THAT(AreEqual(3, Runs.Num()));
+		FSlaterStyleStack Stack;
+		Slater::StyleLibrary().BuildStack(TEXT("Base"), Stack);
+		FLinearColor Danger, Text;
+		ASSERT_THAT(IsTrue(Stack.FindColor(TEXT("UI.Color.Danger"), Danger) && Stack.FindColor(TEXT("UI.Color.Text"), Text)));
+		ASSERT_THAT(AreEqual(FString(TEXT("i")), Runs[0].Tag));
+		ASSERT_THAT(AreEqual(FName(TEXT("Italic")), Runs[0].FontRole));
+		ASSERT_THAT(AreEqual(Text.ToString(), Runs[0].Color.ToString()));
+		ASSERT_THAT(AreEqual(Danger.ToString(), Runs[1].Color.ToString()));
+		ASSERT_THAT(AreEqual(FName(TEXT("Regular")), Runs[1].FontRole));
+		// UI.Font.Heading is Bold, 20 in the Base style.
+		ASSERT_THAT(IsTrue(Runs[2].Tag == TEXT("font") && Runs[2].FontRole == TEXT("Bold") && Runs[2].FontSize == 20 && Runs[2].Text == TEXT("big")));
 	}
 
-	TEST_METHOD(InlineImage_TakesItsSizeFromTheImageSource)
+	TEST_METHOD(InlineImage_TakesItsBrushFromTheImageSource)
 	{
 		Slater::SetImageSource(MakeShared<FSlaterTestImages>(4));
+		const TSharedRef<SSlaterRichText> Found = RtLaidOut(TEXT("Cost <img src=\"icon0\"/>"));
+		const TSharedRef<SSlaterRichText> Missing = RtLaidOut(TEXT("Cost <img src=\"nope\"/>"));
 		const float With = RtSizeOf(TEXT("Cost <img src=\"icon0\"/>")).X;
 		const float Without = RtSizeOf(TEXT("Cost ")).X;
 		Slater::SetImageSource(nullptr);
+		ASSERT_THAT(IsTrue(Found->GetRuns().Num() == 1 && Found->GetRuns()[0].Tag == TEXT("img")));
+		ASSERT_THAT(IsTrue(Found->GetRuns()[0].Image == TEXT("icon0") && Found->GetRuns()[0].bImageFound));
+		ASSERT_THAT(IsTrue(Missing->GetRuns().Num() == 1 && !Missing->GetRuns()[0].bImageFound));
 		ASSERT_THAT(IsTrue(With >= Without + 7.9f));
+	}
+
+	TEST_METHOD(UnknownTag_InBoundText_ShowsAsWritten_WithNoRun)
+	{
+		const TSharedRef<SSlaterRichText> Widget = RtLaidOut(TEXT("Hit <x>hard</> now"));
+		ASSERT_THAT(IsTrue(Widget->GetRuns().IsEmpty()));
 	}
 
 	TEST_METHOD(EntityEscapedTags_ReachTheRichParser)
@@ -142,6 +174,34 @@ TEST_CLASS(SlaterRichTextTests, "BRS.SlaterUI.RichText")
 		ASSERT_THAT(IsTrue(Widget->GetSource() == TEXT("Plain words")));
 		ASSERT_THAT(IsTrue(Rig.Model->SetValue(TEXT("Description"), TEXT("A <b>strong</> sword"))));
 		ASSERT_THAT(IsTrue(Widget->GetSource() == TEXT("A <b>strong</> sword")));
+	}
+
+	TEST_METHOD(TheRichTextSample_BuildsInBothStyles_AndShowsTheMockDescription)
+	{
+		for (const TCHAR* Style : {TEXT("Base"), TEXT("Dusk")})
+		{
+			const TSharedRef<SSlaterView> View = SNew(SSlaterView).LayoutId(TEXT("RichText")).StyleName(Style).UseMockContext(true);
+			ASSERT_THAT(IsFalse(View->HasErrors()));
+			const TSharedPtr<SWidget> Bound = SlaterListKit::Find(View, TEXT("SSlaterRichText"));
+			ASSERT_THAT(IsTrue(Bound.IsValid()));
+			View->SlatePrepass(1.f);
+			TArray<TSharedRef<SWidget>> Stack;
+			Stack.Add(View);
+			int32 Texts = 0;
+			bool bDescription = false;
+			while (!Stack.IsEmpty())
+			{
+				const TSharedRef<SWidget> Widget = Stack.Pop();
+				if (Widget->GetType() == FName(TEXT("SSlaterRichText")))
+				{
+					++Texts;
+					bDescription |= StaticCastSharedRef<SSlaterRichText>(Widget)->GetSource().Contains(TEXT("<b>40 health</>"));
+				}
+				Widget->GetChildren()->ForEachWidget([&](SWidget& Child) { Stack.Add(Child.AsShared()); });
+			}
+			ASSERT_THAT(AreEqual(2, Texts));
+			ASSERT_THAT(IsTrue(bDescription));
+		}
 	}
 
 	TEST_METHOD(Attributes_Wrap_Justify_AreTyped)

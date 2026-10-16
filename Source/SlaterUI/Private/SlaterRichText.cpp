@@ -16,9 +16,14 @@
 struct FSlaterRichSnapshot
 {
 	FTextBlockStyle Base;
-	int32 Size = 12;
+	FSlaterFont BaseFont;
+	FLinearColor BaseColor = FLinearColor::White;
 	TMap<FString, FLinearColor> Colors;
 	TMap<FString, FSlaterFont> Fonts;
+	/** The runs of the last layout; the decorator starts it over when a layout begins (the model text is empty). */
+	TArray<FSlaterRichRun> Runs;
+	const FString* LayoutModelText = nullptr;
+	int32 LayoutModelLength = 0;
 };
 
 namespace
@@ -37,7 +42,7 @@ namespace
 		return FChar::IsAlnum(C) || C == TEXT('_');
 	}
 
-	bool IsNameChar(TCHAR C)
+	bool IsRichNameChar(TCHAR C)
 	{
 		return IsWordChar(C) || C == TEXT('.') || C == TEXT('-');
 	}
@@ -90,7 +95,7 @@ namespace
 				I += 2;
 				continue;
 			}
-			if (I + 1 >= Num || !IsNameChar(Text[I + 1]))
+			if (I + 1 >= Num || !IsRichNameChar(Text[I + 1]))
 			{
 				++I; // a '<' that is only a less-than sign
 				continue;
@@ -99,7 +104,7 @@ namespace
 			FRichTag Tag;
 			Tag.Begin = Begin;
 			int32 J = I + 1;
-			while (J < Num && IsNameChar(Text[J]))
+			while (J < Num && IsRichNameChar(Text[J]))
 			{
 				Tag.Name.AppendChar(Text[J++]);
 			}
@@ -108,7 +113,7 @@ namespace
 			{
 				++J;
 				FString Key, Value;
-				while (J < Num && IsNameChar(Text[J]))
+				while (J < Num && IsRichNameChar(Text[J]))
 				{
 					Key.AppendChar(Text[J++]);
 				}
@@ -155,7 +160,7 @@ namespace
 				}
 				for (int32 K = J; K < Close; ++K)
 				{
-					if (Text[K] == TEXT('<') && K + 1 < Close && IsNameChar(Text[K + 1]))
+					if (Text[K] == TEXT('<') && K + 1 < Close && IsRichNameChar(Text[K + 1]))
 					{
 						Problem(K, TEXT("rich-text tags do not nest: close the first run before opening another"));
 						break;
@@ -276,6 +281,19 @@ namespace
 				Attributes.Add(Pair.Key, Value);
 			}
 
+			// A relayout builds a new model text; start the list over so it does not repeat the runs.
+			if (Snapshot->LayoutModelText != &*InOutModelText || InOutModelText->Len() < Snapshot->LayoutModelLength)
+			{
+				Snapshot->Runs.Reset();
+			}
+			Snapshot->LayoutModelText = &*InOutModelText;
+			Snapshot->LayoutModelLength = InOutModelText->Len();
+			FSlaterRichRun& Logged = Snapshot->Runs.AddDefaulted_GetRef();
+			Logged.Tag = RunInfo.Name;
+			Logged.FontRole = Snapshot->BaseFont.Role;
+			Logged.FontSize = Snapshot->BaseFont.Size;
+			Logged.Color = Snapshot->BaseColor;
+
 			FTextRange ModelRange;
 			ModelRange.BeginIndex = InOutModelText->Len();
 			if (RunInfo.Name == TEXT("img"))
@@ -284,20 +302,29 @@ namespace
 				ModelRange.EndIndex = InOutModelText->Len();
 				const FString* Src = Attributes.Find(TEXT("src"));
 				const FSlateBrush* Brush = Src ? Slater::FindImage(FName(**Src, FNAME_Find)) : nullptr;
+				Logged.Image = Src ? *Src : FString();
+				Logged.bImageFound = Brush != nullptr;
 				return FSlateImageRun::Create(Info, InOutModelText, Brush ? Brush : FStyleDefaults::GetNoBrush(), 0, ModelRange);
 			}
 
-			*InOutModelText += OriginalText.Mid(RunInfo.ContentRange.BeginIndex, RunInfo.ContentRange.EndIndex - RunInfo.ContentRange.BeginIndex);
+			Logged.Text = OriginalText.Mid(RunInfo.ContentRange.BeginIndex, RunInfo.ContentRange.EndIndex - RunInfo.ContentRange.BeginIndex);
+			*InOutModelText += Logged.Text;
 			ModelRange.EndIndex = InOutModelText->Len();
 
 			FTextBlockStyle RunStyle = Snapshot->Base;
+			auto UseFont = [&](FName Role, int32 Size)
+			{
+				RunStyle.SetFont(FCoreStyle::GetDefaultFontStyle(Role, Size));
+				Logged.FontRole = Role;
+				Logged.FontSize = Size;
+			};
 			if (RunInfo.Name == TEXT("b"))
 			{
-				RunStyle.SetFont(FCoreStyle::GetDefaultFontStyle(TEXT("Bold"), Snapshot->Size));
+				UseFont(TEXT("Bold"), Snapshot->BaseFont.Size);
 			}
 			else if (RunInfo.Name == TEXT("i"))
 			{
-				RunStyle.SetFont(FCoreStyle::GetDefaultFontStyle(TEXT("Italic"), Snapshot->Size));
+				UseFont(TEXT("Italic"), Snapshot->BaseFont.Size);
 			}
 			else if (const FString* Value = Attributes.Find(TEXT("value")))
 			{
@@ -305,12 +332,13 @@ namespace
 				{
 					if (const FSlaterFont* Font = Snapshot->Fonts.Find(*Value))
 					{
-						RunStyle.SetFont(FCoreStyle::GetDefaultFontStyle(Font->Role, Font->Size));
+						UseFont(Font->Role, Font->Size);
 					}
 				}
 				else if (const FLinearColor* Color = Snapshot->Colors.Find(*Value))
 				{
 					RunStyle.SetColorAndOpacity(FSlateColor(*Color));
+					Logged.Color = *Color;
 				}
 			}
 			return FSlateTextRun::Create(Info, InOutModelText, RunStyle, ModelRange);
@@ -434,7 +462,8 @@ SSlaterRichText::~SSlaterRichText() = default;
 void SSlaterRichText::Construct(const FArguments& InArgs)
 {
 	Snapshot = MakeShared<FSlaterRichSnapshot>();
-	Snapshot->Size = InArgs._Font.Size;
+	Snapshot->BaseFont = InArgs._Font;
+	Snapshot->BaseColor = InArgs._Color;
 	Snapshot->Base = MakeBaseStyle(InArgs._Font, InArgs._Color);
 	const TSharedRef<FSlaterRichDecorator> Decorator = MakeShared<FSlaterRichDecorator>(Snapshot.ToSharedRef());
 	ChildSlot
@@ -482,4 +511,9 @@ void SSlaterRichText::SetRichText(const FString& Text, const ISlaterStyleSource&
 		}
 	}
 	Block->SetText(FText::FromString(Text));
+}
+
+const TArray<FSlaterRichRun>& SSlaterRichText::GetRuns() const
+{
+	return Snapshot->Runs;
 }

@@ -1,6 +1,7 @@
 // Copyright Broken Rock Studios LLC. All Rights Reserved.
 
 #include "SlaterCombo.h"
+#include "SlaterAttrNames.h"
 
 #include "SlaterElements.h"
 #include "SlaterEvents.h"
@@ -16,7 +17,6 @@ DEFINE_LOG_CATEGORY_STATIC(LogSlaterCombo, Log, All);
 
 namespace
 {
-	const FName ComboOnChange(TEXT("on-change"));
 	const FName ComboOptionsAttr(TEXT("options"));
 
 	FSlaterAttrDesc ComboAttr(const TCHAR* Name, ESlaterAttrType Type)
@@ -250,6 +250,7 @@ void SSlaterCombo::Construct(const FArguments& InArgs)
 		];
 	// T-439: a menu must flip at the window edge rather than run off it (the engine default is on; say it so a change in the engine shows here).
 	ComboBox->SetFitInWindow(true);
+	bFitsInWindow = true;
 	ChildSlot
 	[
 		ComboBox.ToSharedRef()
@@ -399,7 +400,7 @@ void SSlaterCombo::HandleSelectionChanged(FOptionPtr Picked, ESelectInfo::Type H
 	PendingValue = Picked->Value;
 	if (const TSharedPtr<FSlaterEventSink> Pinned = Sink.Pin())
 	{
-		Pinned->Fire(ComboOnChange, Picked->Value);
+		Pinned->Fire(Slater::Attr::OnChange, Picked->Value);
 	}
 }
 

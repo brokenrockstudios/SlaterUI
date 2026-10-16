@@ -67,15 +67,17 @@ namespace
 		const FSlateBrush* Brush = Src ? Slater::FindImage(FName(*Src->Text, FNAME_Find)) : FCoreStyle::Get().GetDefaultBrush();
 		// `visible` is a common attribute: the layout builder applies it; this is the visibility the image has when shown.
 		const EVisibility Visibility = EVisibility::HitTestInvisible;
+		// `tint` multiplies the brush color (the stock icons are white); without it the image keeps its own colors.
+		const FSlateColor Tint = FSlateColor(Context.GetColor(TEXT("tint")));
 		TSharedPtr<SImage> Image;
 		if (Context.Has(SizeName))
 		{
 			const float Size = Context.GetMetric(SizeName);
-			Image = SNew(SImage).Image(Brush).DesiredSizeOverride(FVector2D(Size, Size)).Visibility(Visibility);
+			Image = SNew(SImage).Image(Brush).ColorAndOpacity(Tint).DesiredSizeOverride(FVector2D(Size, Size)).Visibility(Visibility);
 		}
 		else
 		{
-			Image = SNew(SImage).Image(Brush).Visibility(Visibility);
+			Image = SNew(SImage).Image(Brush).ColorAndOpacity(Tint).Visibility(Visibility);
 		}
 		return Image.ToSharedRef();
 	}
@@ -145,7 +147,7 @@ namespace Slater
 		{
 			static_cast<SImage&>(Widget).SetImage(TAttribute<const FSlateBrush*>::CreateLambda([Get = MoveTemp(Get)]() { return FindImage(FName(*Get().Text, FNAME_Find)); }));
 		};
-		ImageDesc.Attributes = {Src, ListAttr(TEXT("size"), ESlaterAttrType::Metric)};
+		ImageDesc.Attributes = {Src, ListAttr(TEXT("size"), ESlaterAttrType::Metric), ListAttr(TEXT("tint"), ESlaterAttrType::Color)};
 		ImageDesc.Children = ESlaterChildRule::None;
 		ImageDesc.Builder = &BuildImage;
 		const bool bImage = Registry.Register(MoveTemp(ImageDesc), &Error);

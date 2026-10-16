@@ -1,6 +1,7 @@
 // Copyright Broken Rock Studios LLC. All Rights Reserved.
 
 #include "SlaterElements.h"
+#include "SlaterAttrNames.h"
 #include "SlaterTemplates.h"
 
 #include "SlaterCombo.h"
@@ -112,8 +113,6 @@ namespace
 	const FName AttrVisible(TEXT("visible"));
 	const FName AttrEnabled(TEXT("enabled"));
 	const FName AttrVisibleWhen(TEXT("visible-when"));
-	const FName AttrOpenWhen(TEXT("open-when"));
-	const FName AttrCloseState(TEXT("close-state"));
 	const FName AttrWidthBy(TEXT("width-by"));
 	const FName AttrHeightBy(TEXT("height-by"));
 	const FName AttrClip(TEXT("clip"));
@@ -641,7 +640,7 @@ namespace
 				Error(Attr.Pos, TEXT("'visible-when' is not supported inside a template yet: each item would need its own wiring to the view's state; put it on an element outside the repeat"));
 				continue;
 			}
-			if ((AttrName == AttrOpenWhen || AttrName == AttrCloseState) && TemplateDepth > 0)
+			if ((AttrName == Slater::Attr::OpenWhen || AttrName == Slater::Attr::CloseState) && TemplateDepth > 0)
 			{
 				Error(Attr.Pos, FString::Printf(TEXT("'%s' is not supported inside a template yet: each item would need its own wiring to the view's state; put the popup outside the repeat, or open it by a click on its anchor"), *Attr.Name));
 				continue;
@@ -1050,7 +1049,7 @@ namespace
 			Out.StateConditions.Add({Widget, FName(*WhenKey), WhenValue});
 		}
 		FString OpenKey, OpenValue;
-		if (const FSlaterValue* OpenWhen = Resolved.Values.Find(AttrOpenWhen))
+		if (const FSlaterValue* OpenWhen = Resolved.Values.Find(Slater::Attr::OpenWhen))
 		{
 			if (Slater::ParseStatePair(OpenWhen->Text, OpenKey, OpenValue))
 			{

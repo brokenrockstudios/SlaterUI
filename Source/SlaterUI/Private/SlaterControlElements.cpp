@@ -1,6 +1,7 @@
 // Copyright Broken Rock Studios LLC. All Rights Reserved.
 
 #include "SlaterControls.h"
+#include "SlaterAttrNames.h"
 #include "SlaterElements.h"
 #include "SlaterEvents.h"
 #include "SlaterSurface.h"
@@ -23,7 +24,6 @@
  */
 namespace
 {
-	const FName ControlOnChange(TEXT("on-change"));
 	const FName ControlOnCommit(TEXT("on-commit"));
 
 	FSlaterAttrDesc ControlAttr(const TCHAR* Name, ESlaterAttrType Type)
@@ -153,7 +153,7 @@ namespace
 			.StepSize(Step)
 			.MouseUsesStep(bHasStep)
 			.Style(&*SliderStyle)
-			.OnValueChanged_Lambda([Sink](float NewValue) { Sink->Fire(ControlOnChange, Slater::NumberText(NewValue)); });
+			.OnValueChanged_Lambda([Sink](float NewValue) { Sink->Fire(Slater::Attr::OnChange, Slater::NumberText(NewValue)); });
 		Slater::AttachEventSink(*Slider, Sink);
 		const TSharedRef<FSlaterControlLook> Look = MakeShared<FSlaterControlLook>();
 		Look->Slider = SliderStyle;
@@ -163,27 +163,16 @@ namespace
 
 	// ---- spinbox ----
 
-	float SpinClamp(const SSpinBox<float>& Box, float Value)
-	{
-		return FMath::Clamp(Value, Box.GetMinValue(), Box.GetMaxValue());
-	}
-
 	FSlaterBindTarget SpinBoxValueBind()
 	{
 		FSlaterBindTarget Target;
 		Target.Apply = [](SWidget& Widget, const FSlaterValue& Value, const ISlaterStyleSource&)
 		{
-			SSpinBox<float>& Box = static_cast<SSpinBox<float>&>(Widget);
-			Box.SetValue(SpinClamp(Box, Value.Number));
+			static_cast<SSpinBox<float>&>(Widget).SetValue(Value.Number);
 		};
 		Target.ApplyPolled = [](SWidget& Widget, TFunction<FSlaterValue()> Get, const ISlaterStyleSource&)
 		{
-			const TWeakPtr<SSpinBox<float>> Weak = StaticCastSharedRef<SSpinBox<float>>(Widget.AsShared());
-			static_cast<SSpinBox<float>&>(Widget).SetValue(TAttribute<float>::CreateLambda([Weak, Get = MoveTemp(Get)]()
-			{
-				const TSharedPtr<SSpinBox<float>> Box = Weak.Pin();
-				return Box.IsValid() ? SpinClamp(*Box, Get().Number) : Get().Number;
-			}));
+			static_cast<SSpinBox<float>&>(Widget).SetValue(TAttribute<float>::CreateLambda([Get = MoveTemp(Get)]() { return Get().Number; }));
 		};
 		return Target;
 	}
@@ -211,7 +200,7 @@ namespace
 			return nullptr;
 		}
 		const TSharedRef<FSlaterEventSink> Sink = MakeShared<FSlaterEventSink>();
-		// The engine's spin box clamps what is typed or dragged to min and max; the clamp is repeated here so an event never carries more.
+		// The engine's spin box clamps a typed, dragged or set value to min and max, so an event never carries more.
 		const TSharedRef<SSpinBox<float>> Box = SNew(SSpinBox<float>)
 			.MinValue(Min)
 			.MaxValue(Max)
@@ -219,11 +208,8 @@ namespace
 			.MaxSliderValue(Max)
 			.Delta(Step)
 			.Value(FMath::Clamp(Context.GetMetric(TEXT("value"), Min), Min, Max))
-			.OnValueChanged_Lambda([Sink, Min, Max](float NewValue) { Sink->Fire(ControlOnChange, Slater::NumberText(FMath::Clamp(NewValue, Min, Max))); })
-			.OnValueCommitted_Lambda([Sink, Min, Max](float NewValue, ETextCommit::Type)
-			{
-				Sink->Fire(ControlOnCommit, Slater::NumberText(FMath::Clamp(NewValue, Min, Max)));
-			});
+			.OnValueChanged_Lambda([Sink](float NewValue) { Sink->Fire(Slater::Attr::OnChange, Slater::NumberText(NewValue)); })
+			.OnValueCommitted_Lambda([Sink](float NewValue, ETextCommit::Type) { Sink->Fire(ControlOnCommit, Slater::NumberText(NewValue)); });
 		Slater::AttachEventSink(*Box, Sink);
 		return Box;
 	}
@@ -273,7 +259,7 @@ namespace
 		const TSharedRef<FSlaterEventSink> Sink = MakeShared<FSlaterEventSink>();
 		const TSharedRef<SSegmentedControl<FString>> Control = SNew(SSegmentedControl<FString>)
 			.Value(Options.Contains(Selected) ? Selected : Options[0])
-			.OnValueChanged_Lambda([Sink](FString NewValue) { Sink->Fire(ControlOnChange, NewValue); });
+			.OnValueChanged_Lambda([Sink](FString NewValue) { Sink->Fire(Slater::Attr::OnChange, NewValue); });
 		for (const FString& Option : Options)
 		{
 			Control->AddSlot(Option, false).Text(FText::FromString(Option));
@@ -337,7 +323,7 @@ namespace
 			.Padding(FMargin(Child ? Child->Slot.Margin : 0.f, 0.f, 0.f, 0.f))
 			.OnCheckStateChanged_Lambda([Sink](ECheckBoxState State)
 			{
-				Sink->Fire(ControlOnChange, State == ECheckBoxState::Checked ? TEXT("true") : TEXT("false"));
+				Sink->Fire(Slater::Attr::OnChange, State == ECheckBoxState::Checked ? TEXT("true") : TEXT("false"));
 			})
 			[
 				Child ? Child->Widget : SNullWidget::NullWidget
@@ -400,7 +386,7 @@ namespace
 			.Text(FText::FromString(Context.GetText(TEXT("text"))))
 			.HintText(FText::FromString(Context.GetText(TEXT("hint"))))
 			.Font(FCoreStyle::GetDefaultFontStyle(Font.Role, Font.Size))
-			.OnTextChanged_Lambda([Sink](const FText& Text) { Sink->Fire(ControlOnChange, Text.ToString()); })
+			.OnTextChanged_Lambda([Sink](const FText& Text) { Sink->Fire(Slater::Attr::OnChange, Text.ToString()); })
 			.OnTextCommitted_Lambda([Sink](const FText& Text, ETextCommit::Type How)
 			{
 				// Enter or leaving the box keeps the text; Escape (OnCleared) puts the old text back, which is not a commit.

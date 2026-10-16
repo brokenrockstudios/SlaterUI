@@ -9,6 +9,8 @@
 
 #include "Styling/CoreStyle.h"
 #include "Widgets/Colors/SColorBlock.h"
+#include "Widgets/Images/SThrobber.h"
+#include "Widgets/Layout/SScaleBox.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/Text/STextBlock.h"
 
@@ -287,6 +289,30 @@ namespace
 			.TrackColor(Context.GetColor(TEXT("track")));
 	}
 
+	TSharedPtr<SWidget> BuildScale(FSlaterBuildContext& Context)
+	{
+		const FName Stretch = Context.GetEnum(TEXT("stretch"), TEXT("fit"));
+		EStretch::Type Mode = EStretch::ScaleToFit;
+		if (Stretch == TEXT("none")) Mode = EStretch::None;
+		else if (Stretch == TEXT("fill")) Mode = EStretch::ScaleToFill;
+		else if (Stretch == TEXT("stretch")) Mode = EStretch::Fill;
+		else if (Stretch == TEXT("user")) Mode = EStretch::UserSpecified;
+		return SNew(SScaleBox)
+			.Stretch(Mode)
+			.UserSpecifiedScale(Context.GetMetric(TEXT("scale"), 1.f))
+			[
+				Context.Children.Num() > 0 ? Context.Children[0].Widget : SNullWidget::NullWidget
+			];
+	}
+
+	TSharedPtr<SWidget> BuildThrobber(FSlaterBuildContext& Context)
+	{
+		// The piece circle's radius is half the size; the widget's desired size is the circle plus a piece.
+		return SNew(SCircularThrobber)
+			.Radius(FMath::Max(Context.GetMetric(TEXT("size")), 1.f) * 0.5f)
+			.ColorAndOpacity(FSlateColor(Context.GetColor(TEXT("color"))));
+	}
+
 	TSharedPtr<SWidget> BuildRule(FSlaterBuildContext& Context)
 	{
 		// The width is the parent's to give (a fill alignment stretches it); only the thickness is fixed.
@@ -324,6 +350,12 @@ namespace
 		AddMetricDefault(Values, TEXT("value"), 0.f);
 		AddColorDefault(Style, Values, TEXT("color"), TEXT("UI.Color.Accent"), FLinearColor::White);
 		AddColorDefault(Style, Values, TEXT("track"), TEXT("UI.Color.Border"), FLinearColor::Black);
+	}
+
+	void ResolveThrobberDefaults(const ISlaterStyleSource& Style, TMap<FName, FSlaterValue>& Values)
+	{
+		AddMetricDefault(Values, TEXT("size"), 32.f);
+		AddColorDefault(Style, Values, TEXT("color"), TEXT("UI.Color.Accent"), FLinearColor::White);
 	}
 
 	void ResolveRuleDefaults(const ISlaterStyleSource& Style, TMap<FName, FSlaterValue>& Values)
@@ -522,6 +554,31 @@ void Slater::RegisterContentElements(FSlaterElementRegistry& Registry)
 	MeterDesc.Builder = &BuildMeter;
 	const bool bMeter = Registry.Register(MoveTemp(MeterDesc), &Error);
 	ensureMsgf(bMeter, TEXT("SlaterUI stock element <meter>: %s"), *Error);
+
+	FSlaterElementDesc ScaleDesc;
+	ScaleDesc.Tag = TEXT("scale");
+	ScaleDesc.Purpose = TEXT("scales its one child to the room it is given: stretch=none, fit (default), fill, stretch or user (with scale)");
+	ScaleDesc.Attributes = {
+		Attr(TEXT("stretch"), ESlaterAttrType::Enum, {TEXT("none"), TEXT("fit"), TEXT("fill"), TEXT("stretch"), TEXT("user")}),
+		Attr(TEXT("scale"), ESlaterAttrType::Metric),
+	};
+	ScaleDesc.Children = ESlaterChildRule::One;
+	ScaleDesc.Builder = &BuildScale;
+	const bool bScale = Registry.Register(MoveTemp(ScaleDesc), &Error);
+	ensureMsgf(bScale, TEXT("SlaterUI stock element <scale>: %s"), *Error);
+
+	FSlaterElementDesc ThrobberDesc;
+	ThrobberDesc.Tag = TEXT("throbber");
+	ThrobberDesc.Purpose = TEXT("a spinning loading indicator");
+	ThrobberDesc.Attributes = {
+		Attr(TEXT("color"), ESlaterAttrType::Color),
+		Attr(TEXT("size"), ESlaterAttrType::Metric),
+	};
+	ThrobberDesc.Children = ESlaterChildRule::None;
+	ThrobberDesc.ResolveDefaults = &ResolveThrobberDefaults;
+	ThrobberDesc.Builder = &BuildThrobber;
+	const bool bThrobber = Registry.Register(MoveTemp(ThrobberDesc), &Error);
+	ensureMsgf(bThrobber, TEXT("SlaterUI stock element <throbber>: %s"), *Error);
 
 	FSlaterElementDesc RuleDesc;
 	RuleDesc.Tag = TEXT("rule");

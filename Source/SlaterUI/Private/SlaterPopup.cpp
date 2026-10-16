@@ -1,6 +1,7 @@
 // Copyright Broken Rock Studios LLC. All Rights Reserved.
 
 #include "SlaterPopup.h"
+#include "SlaterAttrNames.h"
 
 #include "SlaterElements.h"
 #include "SlaterEvents.h"
@@ -13,8 +14,6 @@
 namespace
 {
 	const FName AttrPlacement(TEXT("placement"));
-	const FName AttrOpenWhen(TEXT("open-when"));
-	const FName AttrCloseState(TEXT("close-state"));
 
 	EMenuPlacement PlacementFromWord(FName Word)
 	{
@@ -52,8 +51,8 @@ namespace
 		}
 
 		FString OpenKey, OpenValue, CloseKey, CloseValue;
-		const bool bHasOpen = Context.Has(AttrOpenWhen) && Slater::ParseStatePair(Context.GetText(AttrOpenWhen), OpenKey, OpenValue);
-		bool bHasClose = Context.Has(AttrCloseState) && Slater::ParseStatePair(Context.GetText(AttrCloseState), CloseKey, CloseValue);
+		const bool bHasOpen = Context.Has(Slater::Attr::OpenWhen) && Slater::ParseStatePair(Context.GetText(Slater::Attr::OpenWhen), OpenKey, OpenValue);
+		bool bHasClose = Context.Has(Slater::Attr::CloseState) && Slater::ParseStatePair(Context.GetText(Slater::Attr::CloseState), CloseKey, CloseValue);
 		if (bHasClose && !bHasOpen)
 		{
 			Context.Failure = TEXT("<popup> has close-state but no open-when: close-state says what the engine's close (outside click, Escape) writes back, so name the state with open-when");
