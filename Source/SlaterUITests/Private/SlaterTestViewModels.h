@@ -289,9 +289,20 @@ public:
 	void Add()
 	{
 		++Count;
-		if (const TSharedPtr<SSlaterView> Shown = GetView())
+		Notify(TEXT("Count"));
+	}
+
+	/** Changes data and lets the base tell every binding (T-565). */
+	void SetCountQuietly(int32 NewCount, bool bAll)
+	{
+		Count = NewCount;
+		if (bAll)
 		{
-			static_cast<FSlaterGetterScope*>(Shown->GetContext().Get())->Notify(TEXT("Count"));
+			NotifyAll();
+		}
+		else
+		{
+			Notify({TEXT("Other"), TEXT("Count")});
 		}
 	}
 
@@ -299,6 +310,7 @@ protected:
 	virtual void BuildScope(FSlaterGetterScope& Scope) override
 	{
 		++ScopeBuilds;
+		Scope.AddValue(TEXT("Other"), [this]() { return FString::FromInt(Count * 10); });
 		Scope.AddValue(TEXT("Count"), [this]() { return FString::FromInt(Count); });
 	}
 

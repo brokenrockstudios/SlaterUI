@@ -6,7 +6,6 @@
 #include "SlaterCommands.h"
 #include "SlaterLayoutWidget.h"
 #include "SlaterScope.h"
-#include "SlaterView.h"
 #include "SlaterHelloWidget.generated.h"
 
 /**
@@ -25,7 +24,7 @@ public:
 		StyleName = TEXT("Dusk");
 	}
 
-	int32 Count = 0; // The data is a plain member.
+	int32 GetCount() const { return Count; }
 
 	void Add() { Set(Count + 1); }
 	void Reset() { Set(0); }
@@ -46,14 +45,12 @@ protected:
 	}
 
 private:
+	// Change the data only here, so the bound text is told.
 	void Set(int32 NewCount)
 	{
 		Count = NewCount;
-		if (const TSharedPtr<SSlaterView> Shown = GetView()) // Tell the bound text what changed.
-		{
-			FSlaterGetterScope& Scope = static_cast<FSlaterGetterScope&>(*Shown->GetContext());
-			Scope.Notify(TEXT("Count"));
-			Scope.Notify(TEXT("Greeting"));
-		}
+		Notify({TEXT("Count"), TEXT("Greeting")});
 	}
+
+	int32 Count = 0; // The data is a plain member.
 };

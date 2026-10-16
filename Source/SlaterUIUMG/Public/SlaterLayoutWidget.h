@@ -111,12 +111,26 @@ protected:
 	/** Called each time the view is built: register the commands `on-click` names in this view's own table. Empty by default. */
 	virtual void RegisterCommands(FSlaterCommandTable& Commands) {}
 
+	/**
+	 * Tells the bound text that the values at these paths changed (the getters `BuildScope` registered). Does nothing before
+	 * the view is built, and after `SetViewModel` (the view model announces its own changes).
+	 */
+	void Notify(const FString& Path);
+	void Notify(std::initializer_list<FString> Paths);
+
+	/** Every binding of the view reads again. The same no-ops as `Notify`. */
+	void NotifyAll();
+
 	/** The layout ID. A subclass sets it in its constructor; an empty one shows the normal build error. */
 	FString LayoutId;
 	/** The style (`Base`, `Dusk`). */
 	FName StyleName = TEXT("Base");
 
 private:
+	/** The scope `BuildScope` filled, while it is still the view's context. */
+	TSharedPtr<FSlaterGetterScope> LiveScope() const;
+
 	TWeakPtr<SSlaterView> View;
 	TWeakObjectPtr<UObject> ViewModel;
+	TWeakPtr<FSlaterGetterScope> GetterScope;
 };

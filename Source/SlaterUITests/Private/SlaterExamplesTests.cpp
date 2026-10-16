@@ -145,7 +145,7 @@ TEST_CLASS(SlaterExamplesTests, "BRS.SlaterUI.Examples")
 		Add.Name = TEXT("Hello.Add");
 		ASSERT_THAT(IsTrue(View->RunCommand(Add)));
 		ASSERT_THAT(IsTrue(View->RunCommand(Add)));
-		ASSERT_THAT(AreEqual(Widget->Count, 2));
+		ASSERT_THAT(AreEqual(Widget->GetCount(), 2));
 		TArray<FString> Texts = SlaterBindKit::Texts(Slate);
 		ASSERT_THAT(IsTrue(Texts[3] == TEXT("2")));
 		ASSERT_THAT(IsTrue(Texts[1] == TEXT("Keep going.")));

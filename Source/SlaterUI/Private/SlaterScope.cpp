@@ -18,6 +18,25 @@ public:
 		return Id;
 	}
 
+	/** Calls every callback once, whatever its path. */
+	void NotifyAll()
+	{
+		++NotifyDepth;
+		const int32 Count = Entries.Num();
+		for (int32 I = 0; I < Count; ++I)
+		{
+			if (Entries[I].Callback)
+			{
+				Entries[I].Callback();
+			}
+		}
+		if (--NotifyDepth == 0 && bDirty)
+		{
+			bDirty = false;
+			Entries.RemoveAll([](const FEntry& Entry) { return !Entry.Callback; });
+		}
+	}
+
 	void Remove(int32 Id)
 	{
 		for (int32 I = 0; I < Entries.Num(); ++I)
@@ -394,6 +413,11 @@ void FSlaterGetterScope::AddSetter(const FString& Path, TFunction<bool(const FSt
 void FSlaterGetterScope::Notify(const FString& Path)
 {
 	Table->Notify(Path);
+}
+
+void FSlaterGetterScope::NotifyAll()
+{
+	Table->NotifyAll();
 }
 
 bool FSlaterGetterScope::Read(const FString& Path, FString& OutText) const

@@ -2,6 +2,14 @@
 
 Version format `YYMM.DDRR` (year, month, day, revision of that day). Newest first. Keep entries to one line where possible.
 
+## 2610.1608
+
+- README: "Animated transitions" section with `Docs/Images/Sidebar_Dusk.gif` (the sidebar sample closing and opening in Dusk). New test `BRS.SlaterUI.Render.SidebarGif` (`-WithRHI`) writes the frames and an ffconcat list to `Saved/SlaterUI/Render/SidebarGif/`; ffmpeg command in DevNotes.
+
+## 2610.1607
+
+- `USlaterLayoutUserWidget` gets protected `Notify(Path)`, `Notify({Paths})` and `NotifyAll()` (T-565), no-ops before the build and after `SetViewModel`; `FSlaterGetterScope::NotifyAll` added. `USlaterHelloWidget` uses them and keeps `Count` private (`GetCount()`). Tests `Notify_WithSeveralPaths_UpdatesEachBoundText`, `NotifyAll_MakesEveryBindingReadAgain`, `Notify_BeforeTheBuild_DoesNothing`, `Notify_AfterSetViewModel_IsSafe_AndTheViewModelStaysTheSource`.
+
 ## 2610.1606
 
 - `FSlaterGetterScope` takes paths as plain literals (T-562): `ANSICHAR*` overloads of `AddValue`, `AddList`, `AddSetter` and `Notify` forward to the `FString` ones; `Hello` example uses them. Test `APathAsAPlainLiteral_RegistersReadsAndNotifiesLikeTEXT`.

@@ -125,6 +125,7 @@ TSharedRef<SWidget> USlaterLayoutUserWidget::RebuildWidget()
 {
 	TSharedRef<FSlaterGetterScope> Scope = MakeShared<FSlaterGetterScope>();
 	BuildScope(*Scope);
+	GetterScope = Scope;
 	TSharedPtr<ISlaterScope> Context = Scope;
 	if (UObject* Object = ViewModel.Get())
 	{
@@ -162,6 +163,41 @@ void USlaterLayoutUserWidget::SetViewModel(UObject* InViewModel)
 	if (const TSharedPtr<SSlaterView> Current = View.Pin())
 	{
 		Slater::SetViewModelContext(*Current, InViewModel);
+	}
+}
+
+TSharedPtr<FSlaterGetterScope> USlaterLayoutUserWidget::LiveScope() const
+{
+	const TSharedPtr<SSlaterView> Current = View.Pin();
+	const TSharedPtr<FSlaterGetterScope> Scope = GetterScope.Pin();
+	// A view model given later replaced the context: the getters are no longer what the view reads.
+	return Current.IsValid() && Scope.IsValid() && Current->GetContext() == Scope ? Scope : nullptr;
+}
+
+void USlaterLayoutUserWidget::Notify(const FString& Path)
+{
+	if (const TSharedPtr<FSlaterGetterScope> Scope = LiveScope())
+	{
+		Scope->Notify(Path);
+	}
+}
+
+void USlaterLayoutUserWidget::Notify(std::initializer_list<FString> Paths)
+{
+	if (const TSharedPtr<FSlaterGetterScope> Scope = LiveScope())
+	{
+		for (const FString& Path : Paths)
+		{
+			Scope->Notify(Path);
+		}
+	}
+}
+
+void USlaterLayoutUserWidget::NotifyAll()
+{
+	if (const TSharedPtr<FSlaterGetterScope> Scope = LiveScope())
+	{
+		Scope->NotifyAll();
 	}
 }
 

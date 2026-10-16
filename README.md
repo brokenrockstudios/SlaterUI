@@ -48,6 +48,16 @@ Spacing and colors take either a style token or an inline value, so `margin="UI.
 |------|------|
 | ![Panel in the Base style](Docs/Images/Panel_Base.png) | ![Panel in the Dusk style](Docs/Images/Panel_Dusk.png) |
 
+## Animated transitions
+
+A size can follow view state, and `transition` names a `<motion>` token (duration and ease) from the style, so the change animates. The `Sidebar.sltr` sample collapses to an icon rail when the hamburger is clicked:
+
+```xml
+<surface role="UI.Surface.Panel" width-by="expanded: true=UI.Size.SidebarOpen, false=UI.Size.SidebarRail" transition="UI.Motion.Panel">
+```
+
+![The sidebar sample in the Dusk style collapsing to an icon rail and opening again](Docs/Images/Sidebar_Dusk.gif)
+
 ## Why does this exist?
 
 - **Fast iteration.** Layouts and styles are watched on disk and reloaded live. A broken edit keeps the last good UI on screen and shows the error (file, line, column) instead of crashing.
@@ -65,6 +75,7 @@ Spacing and colors take either a style token or an inline value, so `margin="UI.
 - Build-time checks of tokens and binding paths, with "did you mean" errors and line numbers
 - Two-way bindings: `slider`, `checkbox` and `textbox` controls whose `on-change` / `on-commit` write back to the view model through its setters
 - Commands (`on-click`), view state (`<state>`, `set-state`, `visible-when`) and stock commands like `ui.close`, `ui.push`, `ui.toggle`
+- Animated size transitions: `width-by` / `height-by` follow view state, `transition` eases between sizes
 - Templates (`<template>`, `<import>`) for reusable pieces
 - Live mouse states: hover and pressed looks on interactive surfaces
 - Designer path: a `Slater Layout` UMG widget with MVVM view-model support, and a Game Feature action to add a layout to the HUD
@@ -80,7 +91,6 @@ Because `.sltr` builds ordinary Slate widgets, Unreal's Widget Reflector fully w
 ## Roadmap (coming soon)
 
 - Popup and context menus
-- Collapsible sidebar and animated transitions
 - Hover reveal effects and more stock elements (`meter`, `rule`)
 - Text formatting and converters in bindings, with localization
 - Editor tooling: an XSD and catalog for VS Code completion, and asset pickers in the preview tab

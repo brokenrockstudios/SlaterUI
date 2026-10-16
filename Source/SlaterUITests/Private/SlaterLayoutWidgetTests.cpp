@@ -308,6 +308,57 @@ TEST_CLASS(SlaterGameFeatureActionTests, "BRS.SlaterUI.GameFeatureAction")
 		ASSERT_THAT(IsTrue(SlaterBindKit::Texts(Slate).Contains(TEXT("2"))));
 	}
 
+	TEST_METHOD(Notify_WithSeveralPaths_UpdatesEachBoundText)
+	{
+		Fix.Write(TEXT("CodeWidget.sltr"), TEXT("<vbox><text>{Count}</text><text>{Other}</text></vbox>"));
+		TStrongObjectPtr<USlaterTestCodeWidget> Widget(Cast<USlaterTestCodeWidget>(UUserWidget::CreateWidgetInstance(Spawner.GetWorld(), USlaterTestCodeWidget::StaticClass(), NAME_None)));
+		ASSERT_THAT(IsTrue(Widget.IsValid()));
+		const TSharedRef<SWidget> Slate = Widget->TakeWidget();
+		ASSERT_THAT(IsFalse(Widget->GetView()->HasErrors()));
+		Widget->SetCountQuietly(3, false);
+		const TArray<FString> Texts = SlaterBindKit::Texts(Slate);
+		ASSERT_THAT(IsTrue(Texts.Contains(TEXT("3"))));
+		ASSERT_THAT(IsTrue(Texts.Contains(TEXT("30"))));
+	}
+
+	TEST_METHOD(NotifyAll_MakesEveryBindingReadAgain)
+	{
+		Fix.Write(TEXT("CodeWidget.sltr"), TEXT("<vbox><text>{Count}</text><text>{Other}</text></vbox>"));
+		TStrongObjectPtr<USlaterTestCodeWidget> Widget(Cast<USlaterTestCodeWidget>(UUserWidget::CreateWidgetInstance(Spawner.GetWorld(), USlaterTestCodeWidget::StaticClass(), NAME_None)));
+		ASSERT_THAT(IsTrue(Widget.IsValid()));
+		const TSharedRef<SWidget> Slate = Widget->TakeWidget();
+		Widget->SetCountQuietly(4, true);
+		const TArray<FString> Texts = SlaterBindKit::Texts(Slate);
+		ASSERT_THAT(IsTrue(Texts.Contains(TEXT("4"))));
+		ASSERT_THAT(IsTrue(Texts.Contains(TEXT("40"))));
+	}
+
+	TEST_METHOD(Notify_BeforeTheBuild_DoesNothing)
+	{
+		TStrongObjectPtr<USlaterTestCodeWidget> Widget(Cast<USlaterTestCodeWidget>(UUserWidget::CreateWidgetInstance(Spawner.GetWorld(), USlaterTestCodeWidget::StaticClass(), NAME_None)));
+		ASSERT_THAT(IsTrue(Widget.IsValid()));
+		Widget->SetCountQuietly(1, false);
+		Widget->SetCountQuietly(2, true);
+		ASSERT_THAT(IsFalse(Widget->GetView().IsValid()));
+	}
+
+	TEST_METHOD(Notify_AfterSetViewModel_IsSafe_AndTheViewModelStaysTheSource)
+	{
+		Fix.Write(TEXT("CodeWidget.sltr"), TEXT("<vbox><text>{Title}</text></vbox>"));
+		USlaterTestRootVM* Root = Fix.Make<USlaterTestRootVM>();
+		Root->Title = TEXT("FromVm");
+		TStrongObjectPtr<USlaterTestCodeWidget> Widget(Cast<USlaterTestCodeWidget>(UUserWidget::CreateWidgetInstance(Spawner.GetWorld(), USlaterTestCodeWidget::StaticClass(), NAME_None)));
+		ASSERT_THAT(IsTrue(Widget.IsValid()));
+		const TSharedRef<SWidget> Slate = Widget->TakeWidget();
+		Widget->SetViewModel(Root);
+		ASSERT_THAT(IsFalse(Widget->GetView()->HasErrors()));
+		Widget->SetCountQuietly(5, false);
+		Widget->SetCountQuietly(6, true);
+		ASSERT_THAT(IsTrue(SlaterBindKit::Texts(Slate)[0] == TEXT("FromVm")));
+		Root->SetTitle(TEXT("Changed"));
+		ASSERT_THAT(IsTrue(SlaterBindKit::Texts(Slate)[0] == TEXT("Changed")));
+	}
+
 	TEST_METHOD(ACodeOwnedWidget_WithAMissingLayout_ShowsTheNormalBuildError)
 	{
 		TStrongObjectPtr<USlaterTestCodeWidget> Widget(Cast<USlaterTestCodeWidget>(UUserWidget::CreateWidgetInstance(Spawner.GetWorld(), USlaterTestCodeWidget::StaticClass(), NAME_None)));

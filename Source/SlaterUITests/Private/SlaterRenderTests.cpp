@@ -15,9 +15,12 @@
 #include "RHI.h"
 #include "RenderingThread.h"
 #include "SlaterImages.h"
+#include "SlaterStyle.h"
 #include "SlaterSurface.h"
 #include "SlaterView.h"
 #include "Slate/WidgetRenderer.h"
+#include "Styling/CoreStyle.h"
+#include "Widgets/Layout/SBorder.h"
 #include "Widgets/SWidget.h"
 #include "Widgets/SWindow.h"
 
@@ -456,6 +459,107 @@ bool FSlaterRenderContextMenuTest::RunTest(const FString&)
 			TestTrue(TEXT("Opening the menu changes the picture"), Pictures[0] != Pictures[1]);
 			TestTrue(TEXT("Opening the submenu changes the picture"), Pictures[1] != Pictures[2]);
 		}
+	}
+	Slater::SetImageSource(nullptr);
+	return true;
+}
+
+/**
+ * Renders the sidebar sample in Dusk closing and opening again, frame by frame, for the README GIF: Saved/SlaterUI/Render/SidebarGif/
+ * holds Frame_<n>.png and Sidebar_Dusk.ffconcat (each frame's duration), which ffmpeg turns into a looping GIF (command in DevNotes).
+ * The transition runs at real speed on a manual clock of 50 frames a second, the fastest rate browsers play a GIF at; the two ends
+ * hold for HoldSeconds. Every frame is the expanded size on the style's page color, so the frames line up. Icons need a real RHI,
+ * so under -nullrhi this skips. The checks: the transition takes more than one frame each way and every frame is written.
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlaterRenderSidebarGifTest, "BRS.SlaterUI.Render.SidebarGif", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSlaterRenderSidebarGifTest::RunTest(const FString&)
+{
+	if (GUsingNullRHI)
+	{
+		AddInfo(TEXT("Skipped: requires a real RHI (run with -WithRHI)."));
+		return true;
+	}
+	if (!FSlateApplication::IsInitialized() || !FSlateApplication::Get().GetRenderer())
+	{
+		AddInfo(TEXT("Skipped: no Slate renderer in this run."));
+		return true;
+	}
+
+	constexpr float FrameSeconds = 1.f / 50.f;
+	constexpr float HoldSeconds = 1.f;
+	constexpr int32 MaxMotionFrames = 250;
+	const FString Dir = RenderDir() / TEXT("SidebarGif");
+	IFileManager::Get().DeleteDirectory(*Dir, false, true);
+	IFileManager::Get().MakeDirectory(*Dir, true);
+
+	FSlaterStyleStack Stack;
+	FLinearColor Page = FLinearColor::Black;
+	TestTrue(TEXT("Dusk has a background color"), Slater::StyleLibrary().BuildStack(TEXT("Dusk"), Stack) && Stack.FindColor(TEXT("UI.Color.Background"), Page));
+
+	Slater::SetImageSource(Slater::MakePluginIconSource());
+	FWidgetRenderer Renderer(false);
+	const TSharedRef<SSlaterView> View = SNew(SSlaterView).LayoutId(TEXT("Sidebar")).StyleName(TEXT("Dusk"));
+	const TSharedRef<SWidget> Framed = SNew(SBorder).BorderImage(FCoreStyle::Get().GetBrush(TEXT("WhiteBrush"))).BorderBackgroundColor(Page).Padding(16.f)[View];
+	const TSharedPtr<SSlaterSurface> Hamburger = StaticCastSharedPtr<SSlaterSurface>(View->FindById(TEXT("Hamburger")));
+	if (TestFalse(TEXT("Sidebar builds"), View->HasErrors()) && TestTrue(TEXT("Hamburger found"), Hamburger.IsValid()))
+	{
+		// Draw once so the icons are queued, let a real window rasterize them, then keep the expanded size for every frame.
+		Framed->SlatePrepass(1.f);
+		const FVector2D Size = FVector2D(FMath::CeilToInt(Framed->GetDesiredSize().X), FMath::CeilToInt(Framed->GetDesiredSize().Y));
+		Renderer.DrawWidget(Framed, Size);
+		FlushRenderingCommands();
+		RdShowInWindow(Framed);
+
+		FString Concat = TEXT("ffconcat version 1.0\n");
+		int32 FrameCount = 0;
+		auto WriteFrame = [&](float Seconds)
+		{
+			Framed->SlatePrepass(1.f);
+			UTextureRenderTarget2D* Target = Renderer.DrawWidget(Framed, Size);
+			FlushRenderingCommands();
+			TArray<FColor> Pixels;
+			FTextureRenderTargetResource* Resource = Target ? Target->GameThread_GetRenderTargetResource() : nullptr;
+			if (!TestTrue(TEXT("Pixels read back"), Resource && Resource->ReadPixels(Pixels)))
+			{
+				return;
+			}
+			for (FColor& Pixel : Pixels)
+			{
+				const FColor Encoded = FLinearColor(Pixel.R / 255.f, Pixel.G / 255.f, Pixel.B / 255.f).ToFColorSRGB();
+				Pixel = FColor(Encoded.R, Encoded.G, Encoded.B, 255);
+			}
+			TArray64<uint8> Png;
+			FImageUtils::PNGCompressImageArray(Target->SizeX, Target->SizeY, TArrayView64<const FColor>(Pixels.GetData(), Pixels.Num()), Png);
+			const FString Name = FString::Printf(TEXT("Frame_%03d.png"), FrameCount++);
+			TestTrue(*FString::Printf(TEXT("%s written"), *Name), FFileHelper::SaveArrayToFile(Png, *(Dir / Name)));
+			Concat += FString::Printf(TEXT("file '%s'\nduration %.3f\n"), *Name, Seconds);
+		};
+		// Click, then step the manual clock until the transition settles; the frame after the last step is the next hold.
+		auto PlayToggle = [&]() -> int32
+		{
+			TestTrue(TEXT("Hamburger clicked"), Hamburger->Activate());
+			int32 Steps = 0;
+			do
+			{
+				WriteFrame(FrameSeconds);
+				++Steps;
+			}
+			while (View->AdvanceMotion(FrameSeconds) && Steps < MaxMotionFrames);
+			return Steps;
+		};
+
+		WriteFrame(HoldSeconds);
+		const int32 Closing = PlayToggle();
+		WriteFrame(HoldSeconds);
+		const int32 Opening = PlayToggle();
+		TestTrue(TEXT("Closing takes more than one frame"), Closing > 1 && Closing < MaxMotionFrames);
+		TestTrue(TEXT("Opening takes more than one frame"), Opening > 1 && Opening < MaxMotionFrames);
+
+		// The loop restarts on the first (expanded) frame, so the last motion frame needs no hold of its own.
+		const FString ConcatFile = Dir / TEXT("Sidebar_Dusk.ffconcat");
+		TestTrue(TEXT("Frame list written"), FFileHelper::SaveStringToFile(Concat, *ConcatFile));
+		AddInfo(FString::Printf(TEXT("%s: %d frames (%d closing, %d opening) at %d x %d"), *ConcatFile, FrameCount, Closing, Opening, int32(Size.X), int32(Size.Y)));
 	}
 	Slater::SetImageSource(nullptr);
 	return true;

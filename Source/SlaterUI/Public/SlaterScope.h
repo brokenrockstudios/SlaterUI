@@ -100,6 +100,8 @@ public:
 	void AddSetter(const FString& Path, TFunction<bool(const FString&)> Setter);
 	/** Tells the subscriptions on Path that its value changed. */
 	void Notify(const FString& Path);
+	/** Tells every subscription, on every path, that its value may have changed: each binding reads again. */
+	void NotifyAll();
 
 	/** Plain-literal forms (`AddValue("Count", ...)`): convert and forward, nothing else. A `TEXT()` literal or an `FString` still takes the versions above. */
 	void AddValue(const ANSICHAR* Path, TFunction<FString()> Getter) { AddValue(FString(ANSI_TO_TCHAR(Path)), MoveTemp(Getter)); }
