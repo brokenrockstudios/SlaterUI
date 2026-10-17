@@ -17,6 +17,7 @@ namespace
 {
 	const FName ExampleHello(TEXT("Hello"));
 	const FName ExampleHelloWidget(TEXT("HelloWidget"));
+	const FName ExampleHealthHud(TEXT("HealthHud"));
 
 	/** The game or PIE world a widget example goes into, or null in an editor with no play session. */
 	UWorld* FindPlayWorld()
@@ -95,6 +96,9 @@ public:
 		Registry.Register({ ExampleHelloWidget, TEXT("Examples/Hello"), TEXT("Hello as a UUserWidget subclass (USlaterHelloWidget): CreateWidget and AddToViewport, in PIE"), nullptr,
 			[](UWorld& World) { CreateWidget<USlaterHelloWidget>(&World)->AddToViewport(); } });
 
+		Registry.Register({ ExampleHealthHud, TEXT("Examples/HealthHud"), TEXT("a UMVVMViewModelBase view model: meter, texts and a warning follow a timer; commands with an argument"),
+			[](FName StyleName) { return SlaterExamples::MakeHealthHud(StyleName); } });
+
 		ExampleCommand = MakeUnique<FAutoConsoleCommand>(
 			TEXT("Slater.Example"),
 			TEXT("Slater.Example [Name] [Style]: opens a worked example of C++ bound to a layout; with no name, lists them."),
@@ -106,6 +110,7 @@ public:
 		ExampleCommand.Reset();
 		FSlaterExampleRegistry::Get().Unregister(ExampleHello);
 		FSlaterExampleRegistry::Get().Unregister(ExampleHelloWidget);
+		FSlaterExampleRegistry::Get().Unregister(ExampleHealthHud);
 	}
 
 private:

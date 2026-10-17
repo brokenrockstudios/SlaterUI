@@ -108,7 +108,11 @@ protected:
 	 */
 	virtual void BuildScope(FSlaterGetterScope& Scope) {}
 
-	/** Called each time the view is built: register the commands `on-click` names in this view's own table. Empty by default. */
+	/**
+	 * Called each time the view is built, before the layout is: register the commands `on-click` and the element events name in
+	 * this view's own table. The build then fails, with the attribute's line, for a command that is not stock, not registered
+	 * here and not in the process-wide table (T-566). Empty by default.
+	 */
 	virtual void RegisterCommands(FSlaterCommandTable& Commands) {}
 
 	/**

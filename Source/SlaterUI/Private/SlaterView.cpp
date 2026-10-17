@@ -335,6 +335,11 @@ void SSlaterView::Construct(const FArguments& InArgs)
 	LayoutId = InArgs._LayoutId;
 	bUseMockContext = InArgs._UseMockContext;
 	ExplicitContext = InArgs._Context;
+	bCheckCommands = InArgs._CheckCommands;
+	if (InArgs._RegisterCommands)
+	{
+		InArgs._RegisterCommands(Commands);
+	}
 	ChildSlot[SNullWidget::NullWidget];
 	SetStyle(StyleName);
 	SetAutoRefresh(true);
@@ -386,6 +391,27 @@ bool SSlaterView::TryBuild(const TSharedRef<FSlaterStyleStack>& InStack, FGenera
 	{
 		OutErrors = OutBuilt.Result.Errors;
 		return false;
+	}
+
+	if (bCheckCommands)
+	{
+		for (const FSlaterCommandRef& Ref : OutBuilt.Result.Commands)
+		{
+			if (Slater::IsStockCommand(Ref.Name) || Commands.Contains(Ref.Name) || Slater::Commands().Contains(Ref.Name))
+			{
+				continue;
+			}
+			FSlaterError& Error = OutErrors.AddDefaulted_GetRef();
+			// A command named in an imported template is reported under that file.
+			Error.Path = Ref.Pos.File.IsNone() ? Label : Ref.Pos.File.ToString();
+			Error.Line = Ref.Pos.Line;
+			Error.Column = Ref.Pos.Column;
+			Error.Message = FString::Printf(TEXT("no command '%s': it is not a stock command and neither this view's table nor the process-wide one has it (register it in RegisterCommands)"), *Ref.Name.ToString());
+		}
+		if (OutErrors.Num() > 0)
+		{
+			return false;
+		}
 	}
 
 	OutBuilt.Context = ExplicitContext;

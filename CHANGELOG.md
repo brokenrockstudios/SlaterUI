@@ -2,6 +2,39 @@
 
 Version format `YYMM.DDRR` (year, month, day, revision of that day). Newest first. Keep entries to one line where possible.
 
+## 2610.1703
+
+- `segmented` `icons="A, B"` (one per option; a Slater image or an engine style brush like `Icons.cylinder`); the WidgetGallery SegmentedControl row shows the Starship icons. Tests `ASegmentedControl_Icons*`.
+
+## 2610.1702
+
+- Icon-only `combo` (T-797): `icon-only`, `icon-size` on `combo` and `icon` on `option`; the WidgetGallery SimpleComboBox row shows it (8 TODO lines left). Tests `AnIconOnlyCombo_*` in `Combo`.
+
+## 2610.1701
+
+- `tooltip` attribute (T-423): any element, literal, `{Path}` or `$param`; the engine `SToolTip` with the `UI.Surface.Menu` surface, `UI.Font.Body` and `UI.Color.MenuText`; empty shows none. `Sidebar.sltr` nav items show their label. Tests `BRS.SlaterUI.Tooltip`.
+- `loc` attribute (T-535): `loc="Key"` or `loc="Namespace/Key"` gives `text`, `textbox` `text` and `hint`, and `tooltip` literals an `FText` namespace and key (`Key`, `Key.hint`, `Key.tooltip`) so a loaded culture can translate them; `Slater::MakeLiteralText`. Tests `BRS.SlaterUI.Loc`.
+
+## 2610.1701
+
+- `radio` element (T-797): a group of round boxes over `SCheckBox` with `options`, `selected` (bindable), `direction`, `on-change`, surfaces `UI.Surface.Radio*`; the WidgetGallery Radio Button row shows it (9 TODO lines left). Tests `ARadio_*` in `Controls.Input`.
+
+## 2610.1701
+
+- `surface` gets `shadow` (offset in slate units, a metric) and `shadow-color` (default black at 50% alpha) (T-823): a fake drop shadow of the surface's own shape (rounded or chamfered), painted under its fill; paint only, no layout or hit-test change. `SSlaterSurface::SetShadow`; tests `BRS.SlaterUI.Shadow` and `BRS.SlaterUI.Render.Shadow`.
+
+## 2610.1611
+
+- `HealthHud` example (T-554): `USlaterHealthHudViewModel` (`SlaterHealthHud.h`, a `UMVVMViewModelBase` with the minimal field-notify pattern), `Examples/HealthHud.sltr` with mock, `SlaterExamples::MakeHealthHud` and `Slater.Example HealthHud` (timer drains and heals the view model; `HealthHud.Hurt:10` / `HealthHud.Heal:10`). `SlaterUIExamples` now depends on `ModelViewViewModel`. Tests `MvvmViewModelBase_PushesChangesThroughMakeObjectScope` and `HealthHud_*`.
+
+## 2610.1610
+
+- Sample layout `WidgetGallery` (`Content/UI/Layouts/WidgetGallery.sltr`): the stock controls in two columns, laid out like the engine's Starship Gallery widgets tab (buttons in three looks, toggles, segmented, checkboxes, combo, slider, spin box, text boxes, meter, toolbars); controls SlaterUI lacks show as a red `TODO:` line (T-797). Tests `BRS.SlaterUI.WidgetGallery.*`.
+
+## 2610.1609
+
+- A `USlaterLayoutUserWidget` subclass fails its build, with the attribute's line, for an `on-click` or element event naming a command that is not stock, not registered on the view and not process-wide (T-566). `SSlaterView` gets `CheckCommands` and `RegisterCommands` arguments (off by default, so plain views, the preview and `USlaterLayoutWidget` stay lenient); `FSlaterBuildResult::Commands` lists the named commands. Commands are now registered before the first build. Tests in `BRS.SlaterUI.GameFeatureAction`.
+
 ## 2610.1608
 
 - README: "Animated transitions" section with `Docs/Images/Sidebar_Dusk.gif` (the sidebar sample closing and opening in Dusk). New test `BRS.SlaterUI.Render.SidebarGif` (`-WithRHI`) writes the frames and an ffconcat list to `Saved/SlaterUI/Render/SidebarGif/`; ffmpeg command in DevNotes.

@@ -6,6 +6,7 @@
 #include "Components/ActorTestSpawner.h"
 #include "GameplayTagContainer.h"
 #include "Interfaces/IPluginManager.h"
+#include "Misc/ScopeExit.h"
 #include "SlaterBindTestKit.h"
 #include "SlaterGameFeatureAction.h"
 #include "SlaterLayoutWidget.h"
@@ -306,6 +307,60 @@ TEST_CLASS(SlaterGameFeatureActionTests, "BRS.SlaterUI.GameFeatureAction")
 		ASSERT_THAT(IsTrue(View->RunCommand(Call)));
 		ASSERT_THAT(AreEqual(Widget->Count, 2));
 		ASSERT_THAT(IsTrue(SlaterBindKit::Texts(Slate).Contains(TEXT("2"))));
+	}
+
+	TEST_METHOD(ACodeOwnedWidget_FailsItsBuild_ForACommandNobodyRegistered_WithTheLine)
+	{
+		Fix.Write(TEXT("CodeWidget.sltr"), TEXT("<vbox>\n<surface role=\"UI.Surface.Button\" on-click=\"Code.Ad\"><text>add</text></surface>\n</vbox>"));
+		TStrongObjectPtr<USlaterTestCodeWidget> Widget(Cast<USlaterTestCodeWidget>(UUserWidget::CreateWidgetInstance(Spawner.GetWorld(), USlaterTestCodeWidget::StaticClass(), NAME_None)));
+		ASSERT_THAT(IsTrue(Widget.IsValid()));
+		const TSharedRef<SWidget> Slate = Widget->TakeWidget();
+		const TSharedPtr<SSlaterView> View = Widget->GetView();
+		ASSERT_THAT(IsTrue(View->HasErrors()));
+		const TArray<FSlaterError>& Errors = View->GetResult().Errors;
+		ASSERT_THAT(AreEqual(Errors.Num(), 1));
+		ASSERT_THAT(AreEqual(Errors[0].Line, 2));
+		ASSERT_THAT(IsTrue(Errors[0].Message.Contains(TEXT("Code.Ad"))));
+	}
+
+	TEST_METHOD(ACodeOwnedWidget_ChecksCommandsInsideATemplate_AndOnAnElementEvent)
+	{
+		Fix.Write(TEXT("CodeWidget.sltr"), TEXT("<vbox>\n<template name='act'><surface role=\"UI.Surface.Button\" on-click=\"Code.Nope\"><text>x</text></surface></template>\n<act/>\n</vbox>"));
+		TStrongObjectPtr<USlaterTestCodeWidget> Widget(Cast<USlaterTestCodeWidget>(UUserWidget::CreateWidgetInstance(Spawner.GetWorld(), USlaterTestCodeWidget::StaticClass(), NAME_None)));
+		ASSERT_THAT(IsTrue(Widget.IsValid()));
+		const TSharedRef<SWidget> Slate = Widget->TakeWidget();
+		const TSharedPtr<SSlaterView> View = Widget->GetView();
+		ASSERT_THAT(IsTrue(View->HasErrors()));
+		const TArray<FSlaterError>& Errors = View->GetResult().Errors;
+		ASSERT_THAT(AreEqual(Errors.Num(), 1));
+		ASSERT_THAT(IsTrue(Errors[0].Line > 0));
+		ASSERT_THAT(IsTrue(Errors[0].Message.Contains(TEXT("Code.Nope"))));
+
+		Fix.Write(TEXT("CodeWidget.sltr"), TEXT("<vbox>\n<slider on-change=\"Code.Nope2\"/>\n</vbox>"));
+		ASSERT_THAT(IsFalse(View->Reload()));
+		ASSERT_THAT(IsTrue(View->GetResult().Errors[0].Message.Contains(TEXT("Code.Nope2"))));
+	}
+
+	TEST_METHOD(ACodeOwnedWidget_AcceptsStockRegisteredAndProcessWideCommands)
+	{
+		Slater::Commands().Register(TEXT("Lw.Global"), [](const FSlaterCommandCall&) {});
+		ON_SCOPE_EXIT { Slater::Commands().Unregister(TEXT("Lw.Global")); };
+		Fix.Write(TEXT("CodeWidget.sltr"), TEXT("<vbox>\n"
+			"<surface role=\"UI.Surface.Button\" on-click=\"ui.close\"><text>a</text></surface>\n"
+			"<surface role=\"UI.Surface.Button\" on-click=\"Code.Add\"><text>b</text></surface>\n"
+			"<surface role=\"UI.Surface.Button\" on-click=\"Lw.Global:Arg\"><text>c</text></surface>\n"
+			"</vbox>"));
+		TStrongObjectPtr<USlaterTestCodeWidget> Widget(Cast<USlaterTestCodeWidget>(UUserWidget::CreateWidgetInstance(Spawner.GetWorld(), USlaterTestCodeWidget::StaticClass(), NAME_None)));
+		ASSERT_THAT(IsTrue(Widget.IsValid()));
+		const TSharedRef<SWidget> Slate = Widget->TakeWidget();
+		ASSERT_THAT(IsFalse(Widget->GetView()->HasErrors()));
+	}
+
+	TEST_METHOD(APlainView_StaysLenient_ForTheSameMisspelledCommand)
+	{
+		Fix.Write(TEXT("LwLenient.sltr"), TEXT("<vbox><surface role=\"UI.Surface.Button\" on-click=\"Code.Ad\"><text>add</text></surface></vbox>"));
+		const TSharedRef<SSlaterView> View = SNew(SSlaterView).LayoutId(TEXT("LwLenient"));
+		ASSERT_THAT(IsFalse(View->HasErrors()));
 	}
 
 	TEST_METHOD(Notify_WithSeveralPaths_UpdatesEachBoundText)

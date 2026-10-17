@@ -8,10 +8,13 @@
 #include "SlaterObjectScope.h"
 #include "SlaterTestViewModels.h"
 #include "SlaterView.h"
+#include "Styling/CoreStyle.h"
+#include "Widgets/Images/SImage.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Input/SSegmentedControl.h"
 #include "Widgets/Input/SSpinBox.h"
 
-/** The input controls batch (T-526): `spinbox` over `SSpinBox<float>` and `segmented` over `SSegmentedControl<FString>`. */
+/** The input controls batch (T-526): `spinbox` over `SSpinBox<float>` and `segmented` over `SSegmentedControl<FString>`; `radio` over `SCheckBox` (T-797). */
 TEST_CLASS(SlaterInputControlTests, "BRS.SlaterUI.Controls.Input")
 {
 	FSlaterBindFixture Fix;
@@ -127,6 +130,42 @@ TEST_CLASS(SlaterInputControlTests, "BRS.SlaterUI.Controls.Input")
 		ASSERT_THAT(AreEqual(Segments(View, TEXT("D"))->GetValue(), FString(TEXT("A"))));
 	}
 
+	/** Reaches the protected brush attribute of an SImage (it has no public getter). */
+	struct FImagePeek : SImage
+	{
+		using SImage::GetImageAttribute;
+	};
+
+	/** Every SImage brush under Widget, in tree order. */
+	static void CollectImages(SWidget& Widget, TArray<const FSlateBrush*>& Out)
+	{
+		if (Widget.GetType() == FName(TEXT("SImage")))
+		{
+			Out.Add(static_cast<FImagePeek&>(static_cast<SImage&>(Widget)).GetImageAttribute().Get());
+		}
+		Widget.GetChildren()->ForEachWidget([&Out](SWidget& Child) { CollectImages(Child, Out); });
+	}
+
+	TEST_METHOD(ASegmentedControl_Icons_AreShownPerOption_FromTheEngineStyle)
+	{
+		Fix.Write(TEXT("InSegIcons.sltr"), TEXT("<vbox><segmented id=\"S\" options=\"Box, Sphere\" icons=\"Icons.box-perspective, Icons.sphere\"/></vbox>"));
+		const TSharedRef<SSlaterView> View = SNew(SSlaterView).LayoutId(TEXT("InSegIcons"));
+		ASSERT_THAT(IsFalse(View->HasErrors()));
+		const TSharedRef<SSegmentedControl<FString>> Control = Segments(View, TEXT("S"));
+		ASSERT_THAT(AreEqual(Control->NumSlots(), 2));
+		TArray<const FSlateBrush*> Shown;
+		CollectImages(*Control, Shown);
+		ASSERT_THAT(AreEqual(Shown.Num(), 2));
+		ASSERT_THAT(IsTrue(Shown[0] == FCoreStyle::Get().GetBrush("Icons.box-perspective")));
+		ASSERT_THAT(IsTrue(Shown[1] == FCoreStyle::Get().GetBrush("Icons.sphere")));
+	}
+
+	TEST_METHOD(ASegmentedControl_WithBadIcons_IsRefused)
+	{
+		ASSERT_THAT(IsTrue(Refusal(TEXT("<vbox><segmented options=\"A,B\" icons=\"Icons.sphere\"/></vbox>")).Contains(TEXT("one icon per option"))));
+		ASSERT_THAT(IsTrue(Refusal(TEXT("<vbox><segmented options=\"A\" icons=\"Icons.NoSuchThing\"/></vbox>")).Contains(TEXT("Icons.NoSuchThing"))));
+	}
+
 	TEST_METHOD(ASegmentedControl_Selection_FollowsTheData_AndWritesBack)
 	{
 		USlaterTestSettingsVM* Settings = Fix.Make<USlaterTestSettingsVM>();
@@ -155,6 +194,81 @@ TEST_CLASS(SlaterInputControlTests, "BRS.SlaterUI.Controls.Input")
 	{
 		ASSERT_THAT(IsTrue(Refusal(TEXT("<vbox><segmented options=\" , \"/></vbox>")).Contains(TEXT("needs at least one choice"))));
 		ASSERT_THAT(IsTrue(Refusal(TEXT("<vbox><segmented/></vbox>")).Contains(TEXT("options"))));
+	}
+
+	/** The radio group's round boxes, in order. */
+	TArray<TSharedPtr<SCheckBox>> RadioBoxes(const TSharedRef<SSlaterView>& View, const TCHAR* Id)
+	{
+		TArray<TSharedPtr<SCheckBox>> Boxes;
+		TFunction<void(SWidget&)> Collect = [&](SWidget& Widget)
+		{
+			if (Widget.GetType() == FName(TEXT("SCheckBox")))
+			{
+				Boxes.Add(StaticCastSharedRef<SCheckBox>(Widget.AsShared()));
+				return;
+			}
+			Widget.GetChildren()->ForEachWidget([&](SWidget& Child) { Collect(Child); });
+		};
+		Collect(*View->FindById(Id));
+		return Boxes;
+	}
+
+	TEST_METHOD(ARadio_Builds_OneRoundBoxPerOption_WithTheSelectedOneChecked)
+	{
+		Fix.Write(TEXT("InRadio.sltr"), TEXT("<vbox><radio id=\"R\" options=\"Low, Medium,High, ,Medium\" selected=\"High\"/><radio id=\"D\" options=\"A,B\" selected=\"Nope\" direction=\"horizontal\"/></vbox>"));
+		const TSharedRef<SSlaterView> View = SNew(SSlaterView).LayoutId(TEXT("InRadio"));
+		ASSERT_THAT(IsFalse(View->HasErrors()));
+		const TArray<TSharedPtr<SCheckBox>> Boxes = RadioBoxes(View, TEXT("R"));
+		ASSERT_THAT(AreEqual(Boxes.Num(), 3));
+		ASSERT_THAT(IsTrue(!Boxes[0]->IsChecked() && !Boxes[1]->IsChecked() && Boxes[2]->IsChecked()));
+		// A selected value that is not an option falls back to the first.
+		const TArray<TSharedPtr<SCheckBox>> Other = RadioBoxes(View, TEXT("D"));
+		ASSERT_THAT(AreEqual(Other.Num(), 2));
+		ASSERT_THAT(IsTrue(Other[0]->IsChecked() && !Other[1]->IsChecked()));
+		ASSERT_THAT(AreEqual(View->FindById(TEXT("D"))->GetType(), FName(TEXT("SHorizontalBox"))));
+		ASSERT_THAT(AreEqual(View->FindById(TEXT("R"))->GetType(), FName(TEXT("SVerticalBox"))));
+	}
+
+	TEST_METHOD(ARadio_ChoosingAnOption_MovesTheChoice_AndNeverUnchecksIt)
+	{
+		Fix.Write(TEXT("InRadioPick.sltr"), TEXT("<vbox><radio id=\"R\" options=\"A,B,C\"/></vbox>"));
+		const TSharedRef<SSlaterView> View = SNew(SSlaterView).LayoutId(TEXT("InRadioPick"));
+		const TArray<TSharedPtr<SCheckBox>> Boxes = RadioBoxes(View, TEXT("R"));
+		ASSERT_THAT(AreEqual(Boxes.Num(), 3));
+		Boxes[2]->ToggleCheckedState();
+		ASSERT_THAT(IsTrue(!Boxes[0]->IsChecked() && !Boxes[1]->IsChecked() && Boxes[2]->IsChecked()));
+		// Pressing the chosen one again keeps it chosen.
+		Boxes[2]->ToggleCheckedState();
+		ASSERT_THAT(IsTrue(Boxes[2]->IsChecked()));
+		Boxes[1]->ToggleCheckedState();
+		ASSERT_THAT(IsTrue(!Boxes[0]->IsChecked() && Boxes[1]->IsChecked() && !Boxes[2]->IsChecked()));
+	}
+
+	TEST_METHOD(ARadio_Choice_FollowsTheData_AndWritesBack)
+	{
+		USlaterTestSettingsVM* Settings = Fix.Make<USlaterTestSettingsVM>();
+		Settings->Nickname = TEXT("B");
+		Fix.Write(TEXT("InRadioBind.sltr"), TEXT("<vbox><radio id=\"R\" options=\"A,B,C\" selected=\"{Nickname}\" on-change=\"{Nickname}\"/></vbox>"));
+		const TSharedRef<SSlaterView> View = SNew(SSlaterView).LayoutId(TEXT("InRadioBind"));
+		ASSERT_THAT(IsTrue(View->SetContext(Slater::MakeObjectScope(Settings))));
+		const TArray<TSharedPtr<SCheckBox>> Boxes = RadioBoxes(View, TEXT("R"));
+		ASSERT_THAT(IsTrue(Boxes[1]->IsChecked() && !Boxes[0]->IsChecked()));
+
+		Settings->SetNickname(TEXT("C"));
+		ASSERT_THAT(IsTrue(Boxes[2]->IsChecked() && !Boxes[1]->IsChecked()));
+
+		const int32 SetsBefore = Settings->NicknameSets;
+		Boxes[0]->ToggleCheckedState();
+		ASSERT_THAT(AreEqual(Settings->NicknameSets, SetsBefore + 1));
+		ASSERT_THAT(AreEqual(Settings->Nickname, FString(TEXT("A"))));
+		ASSERT_THAT(IsTrue(Boxes[0]->IsChecked() && !Boxes[2]->IsChecked()));
+	}
+
+	TEST_METHOD(ARadio_WithNoOptions_IsRefused)
+	{
+		ASSERT_THAT(IsTrue(Refusal(TEXT("<vbox><radio options=\" , \"/></vbox>")).Contains(TEXT("needs at least one choice"))));
+		ASSERT_THAT(IsTrue(Refusal(TEXT("<vbox><radio/></vbox>")).Contains(TEXT("options"))));
+		ASSERT_THAT(IsTrue(Refusal(TEXT("<vbox><radio options=\"A\" direction=\"diagonal\"/></vbox>")).Contains(TEXT("direction"))));
 	}};
 
 #endif

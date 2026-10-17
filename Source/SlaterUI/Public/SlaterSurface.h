@@ -121,6 +121,16 @@ public:
 	const FSlaterChamfer& GetChamfer() const { return Chamfer; }
 	bool IsChamfered() const { return Chamfer.IsSet(); }
 
+	/**
+	 * A fake drop shadow (`shadow="N"`, `shadow-color`): a copy of the surface's shape in `InColor`, moved (+N, +N) slate
+	 * units and painted under the fill, on the surface's own layer. Paint only: desired size, geometry, hit testing and snapping
+	 * do not change, and a clipping parent cuts it. An offset of 0 or less turns it off.
+	 */
+	void SetShadow(float InOffset, const FLinearColor& InColor = FLinearColor(0.f, 0.f, 0.f, 0.5f));
+	bool HasShadow() const { return ShadowOffset > 0.f; }
+	float GetShadowOffset() const { return ShadowOffset; }
+	const FLinearColor& GetShadowColor() const { return ShadowColor; }
+
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
 
 	/** The style role this surface was made from (`UI.Surface.Button`), so a state can look up `<role>.Hover` later. */
@@ -138,6 +148,8 @@ private:
 	void Refresh();
 	/** The `SSlaterView` this surface is in, or null. */
 	TSharedPtr<SSlaterView> FindView() const;
+	/** Rebuilds `ShadowBrush` for the current surface and shadow color. */
+	void UpdateShadowBrush();
 	/** Sets a pointer-driven state in the view; logs and does nothing outside one. */
 	void ApplyPointerState(FName Key, const FString& Value, const TCHAR* Attribute) const;
 
@@ -146,6 +158,10 @@ private:
 	FSlaterSurface HoverSurface;
 	FSlaterSurface PressedSurface;
 	FSlaterChamfer Chamfer;
+	float ShadowOffset = 0.f;
+	FLinearColor ShadowColor = FLinearColor(0.f, 0.f, 0.f, 0.5f);
+	/** The shadow of a rounded box: the current surface's radius, filled with the shadow color, no outline. */
+	TSharedPtr<const FSlateBrush> ShadowBrush;
 	bool bInteractive = false;
 	bool bHovered = false;
 	bool bPressed = false;

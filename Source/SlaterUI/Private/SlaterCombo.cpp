@@ -9,6 +9,8 @@
 
 #include "Styling/CoreStyle.h"
 #include "Styling/SlateTypes.h"
+#include "SlaterList.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/SBoxPanel.h"
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Text/STextBlock.h"
@@ -83,6 +85,7 @@ namespace
 		const TSharedRef<FSlaterComboOptionMeta> Meta = MakeShared<FSlaterComboOptionMeta>();
 		Meta->Option.Value = Value;
 		Meta->Option.Label = Context.Node.Text.IsEmpty() ? Value : Context.Node.Text;
+		Meta->Option.Icon = Context.GetText(TEXT("icon"));
 		// Draws nothing: the parent `combo` reads the metadata. Outside a combo an option is an empty box.
 		const TSharedRef<SBox> Box = SNew(SBox);
 		Box->AddMetadata(Meta);
@@ -192,6 +195,26 @@ namespace
 			return nullptr;
 		}
 
+		const bool bIconOnly = Context.GetBool(TEXT("icon-only"), false);
+		for (const FSlaterComboOption& Option : Options)
+		{
+			if (bIconOnly && Option.Icon.IsEmpty())
+			{
+				Context.Failure = FString::Printf(TEXT("<combo icon-only=\"true\"> option '%s' has no icon; every option needs one (icon=\"Home\")"), *Option.Value);
+				return nullptr;
+			}
+			if (!bIconOnly && !Option.Icon.IsEmpty())
+			{
+				Context.Failure = FString::Printf(TEXT("<option> '%s' has an icon but its <combo> is not icon-only; add icon-only=\"true\" to the combo"), *Option.Value);
+				return nullptr;
+			}
+			if (bIconOnly && Slater::HasImageSource() && !Slater::FindImage(FName(*Option.Icon, FNAME_Find)))
+			{
+				Context.Failure = FString::Printf(TEXT("<option> '%s' icon '%s' is not a known image"), *Option.Value, *Option.Icon);
+				return nullptr;
+			}
+		}
+
 		// The closed box is the TextBox surface (Hover and Focused swap it) and the menu the dark Menu surface; text is UI.Color.Text.
 		const TSharedRef<FComboBoxStyle> BoxStyle = MakeShared<FComboBoxStyle>(FCoreStyle::Get().GetWidgetStyle<FComboBoxStyle>("ComboBox"));
 		const FSlaterSurface Normal = ComboSurface(Context, TEXT("UI.Surface.TextBox"), MakeComboSurface(FLinearColor::White, FLinearColor(0.55f, 0.58f, 0.63f), 1.f, 4.f));
@@ -219,7 +242,9 @@ namespace
 			.Font(FCoreStyle::GetDefaultFontStyle(Font.Role, Font.Size))
 			.TextColor(TextColor)
 			.MenuTextColor(MenuTextColor)
-			.Hint(Context.GetText(TEXT("hint")));
+			.Hint(Context.GetText(TEXT("hint")))
+			.IconOnly(bIconOnly)
+			.IconSize(Context.Has(TEXT("icon-size")) ? Context.GetMetric(TEXT("icon-size")) : 16.f);
 		Combo->SetEventSink(Sink);
 		Combo->SetOptions(Options);
 		Combo->SetSelectedValue(Selected);
@@ -237,16 +262,30 @@ void SSlaterCombo::Construct(const FArguments& InArgs)
 	Font = InArgs._Font;
 	TextColor = InArgs._TextColor;
 	MenuTextColor = InArgs._MenuTextColor;
+	bIconOnly = InArgs._IconOnly;
+	IconSize = InArgs._IconSize;
+	const TSharedRef<SWidget> Shown = bIconOnly
+		? StaticCastSharedRef<SWidget>(SNew(SBox)
+			.HAlign(HAlign_Left)
+			.VAlign(VAlign_Center)
+			.WidthOverride(IconSize)
+			.HeightOverride(IconSize)
+			[
+				SNew(SImage)
+				.Image(this, &SSlaterCombo::GetShownBrush)
+				.ColorAndOpacity(FSlateColor(TextColor))
+			])
+		: StaticCastSharedRef<SWidget>(SNew(STextBlock)
+			.Text(this, &SSlaterCombo::GetShownText)
+			.Font(Font)
+			.ColorAndOpacity(FSlateColor(TextColor)));
 	ComboBox = SNew(SComboBox<FOptionPtr>)
 		.ComboBoxStyle(InArgs._Style)
 		.OptionsSource(&Options)
 		.OnGenerateWidget(this, &SSlaterCombo::MakeRow)
 		.OnSelectionChanged(this, &SSlaterCombo::HandleSelectionChanged)
 		[
-			SNew(STextBlock)
-			.Text(this, &SSlaterCombo::GetShownText)
-			.Font(Font)
-			.ColorAndOpacity(FSlateColor(TextColor))
+			Shown
 		];
 	// T-439: a menu must flip at the window edge rather than run off it (the engine default is on; say it so a change in the engine shows here).
 	ComboBox->SetFitInWindow(true);
@@ -259,6 +298,24 @@ void SSlaterCombo::Construct(const FArguments& InArgs)
 
 TSharedRef<SWidget> SSlaterCombo::MakeRow(FOptionPtr Option) const
 {
+	if (bIconOnly)
+	{
+		const FSlateBrush* Brush = Option.IsValid() ? Slater::FindImage(FName(*Option->Icon, FNAME_Find)) : nullptr;
+		// The menu stretches a row to its width; an image in it would stretch too, so pin the icon to its size.
+		return SNew(SBox)
+			.HAlign(HAlign_Left)
+			.Padding(FMargin(4.f, 3.f))
+			[
+				SNew(SBox)
+				.WidthOverride(IconSize)
+				.HeightOverride(IconSize)
+				[
+					SNew(SImage)
+					.Image(Brush)
+					.ColorAndOpacity(FSlateColor(MenuTextColor))
+				]
+			];
+	}
 	return SNew(STextBlock)
 		.Text(FText::FromString(Option.IsValid() ? Option->Label : FString()))
 		.Font(Font)
@@ -378,6 +435,11 @@ FText SSlaterCombo::GetShownText() const
 	return FText::FromString(Selected.IsValid() ? Selected->Label : Hint);
 }
 
+const FSlateBrush* SSlaterCombo::GetShownBrush() const
+{
+	return Selected.IsValid() ? Slater::FindImage(FName(*Selected->Icon, FNAME_Find)) : nullptr;
+}
+
 void SSlaterCombo::PickOption(const FString& InValue)
 {
 	for (const FOptionPtr& Option : Options)
@@ -445,7 +507,7 @@ void Slater::RegisterComboElements(FSlaterElementRegistry& Registry)
 	OptionDesc.Purpose = TEXT("one choice of a combo: value is what the data holds, the text is what the user sees");
 	FSlaterAttrDesc OptionValue = ComboAttr(TEXT("value"), ESlaterAttrType::Text);
 	OptionValue.bRequired = true;
-	OptionDesc.Attributes = {OptionValue};
+	OptionDesc.Attributes = {OptionValue, ComboAttr(TEXT("icon"), ESlaterAttrType::Text)};
 	OptionDesc.Children = ESlaterChildRule::None;
 	OptionDesc.bAllowsText = true;
 	OptionDesc.Builder = &BuildOption;
@@ -464,6 +526,8 @@ void Slater::RegisterComboElements(FSlaterElementRegistry& Registry)
 		OptionsAttr,
 		ComboAttr(TEXT("hint"), ESlaterAttrType::Text),
 		ComboAttr(TEXT("font"), ESlaterAttrType::Font),
+		ComboAttr(TEXT("icon-only"), ESlaterAttrType::Bool),
+		ComboAttr(TEXT("icon-size"), ESlaterAttrType::Metric),
 		Slater::EventAttribute(TEXT("on-change")),
 	};
 	ComboDesc.Children = ESlaterChildRule::Many;

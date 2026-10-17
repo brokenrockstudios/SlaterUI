@@ -7,6 +7,7 @@
 
 class SSlaterView;
 class UWorld;
+class USlaterHealthHudViewModel;
 
 /**
  * One worked example: a layout under `Content/UI/Layouts/Examples/` and the C++ that binds to it. Create builds a view in
@@ -50,4 +51,11 @@ namespace SlaterExamples
 	 * and tells the scope which paths changed.
 	 */
 	SLATERUIEXAMPLES_API TSharedRef<SSlaterView> MakeHello(FName StyleName);
+
+	/**
+	 * HealthHud: a view model that is a `UMVVMViewModelBase` (`USlaterHealthHudViewModel`). With no ViewModel given the
+	 * example makes its own and a timer drains and heals it while the view lives; a given one is only shown (the caller
+	 * drives it and the view keeps it alive).
+	 */
+	SLATERUIEXAMPLES_API TSharedRef<SSlaterView> MakeHealthHud(FName StyleName, USlaterHealthHudViewModel* ViewModel = nullptr);
 }

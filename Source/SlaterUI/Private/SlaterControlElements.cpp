@@ -4,6 +4,7 @@
 #include "SlaterAttrNames.h"
 #include "SlaterElements.h"
 #include "SlaterEvents.h"
+#include "SlaterList.h"
 #include "SlaterSurface.h"
 
 #include "Styling/CoreStyle.h"
@@ -14,6 +15,9 @@
 #include "Widgets/Input/SSegmentedControl.h"
 #include "Widgets/Input/SSlider.h"
 #include "Widgets/Input/SSpinBox.h"
+#include "Widgets/Layout/SBox.h"
+#include "Widgets/SBoxPanel.h"
+#include "Widgets/Text/STextBlock.h"
 #include "Widgets/SNullWidget.h"
 
 /**
@@ -266,14 +270,43 @@ namespace
 			Context.Failure = TEXT("<segmented> needs at least one choice in options=\"A, B, C\"");
 			return nullptr;
 		}
+		// `icons` runs parallel to options: a Slater image name, or an engine style brush such as Icons.cylinder.
+		TArray<const FSlateBrush*> Icons;
+		const FString IconsText = Context.GetText(TEXT("icons"));
+		if (!IconsText.IsEmpty())
+		{
+			TArray<FString> Names;
+			IconsText.ParseIntoArray(Names, TEXT(","), false);
+			if (Names.Num() != Options.Num())
+			{
+				Context.Failure = FString::Printf(TEXT("<segmented> icons has %d names but options has %d; give one icon per option"), Names.Num(), Options.Num());
+				return nullptr;
+			}
+			for (FString& Name : Names)
+			{
+				Name.TrimStartAndEndInline();
+				const FSlateBrush* Brush = Name.IsEmpty() ? nullptr : Slater::FindImage(FName(*Name, FNAME_Find));
+				if (!Brush && !Name.IsEmpty())
+				{
+					Brush = FCoreStyle::Get().GetOptionalBrush(FName(*Name), nullptr, nullptr);
+				}
+				if (!Brush && !Name.IsEmpty())
+				{
+					Context.Failure = FString::Printf(TEXT("<segmented> icon '%s' is not a known image or engine style brush"), *Name);
+					return nullptr;
+				}
+				Icons.Add(Brush);
+			}
+		}
 		const FString Selected = Context.GetText(TEXT("selected"));
 		const TSharedRef<FSlaterEventSink> Sink = MakeShared<FSlaterEventSink>();
 		const TSharedRef<SSegmentedControl<FString>> Control = SNew(SSegmentedControl<FString>)
 			.Value(Options.Contains(Selected) ? Selected : Options[0])
 			.OnValueChanged_Lambda([Sink](FString NewValue) { Sink->Fire(Slater::Attr::OnChange, NewValue); });
-		for (const FString& Option : Options)
+		for (int32 Index = 0; Index < Options.Num(); ++Index)
 		{
-			Control->AddSlot(Option, false).Text(FText::FromString(Option));
+			const FSlateBrush* Icon = Icons.IsValidIndex(Index) ? Icons[Index] : nullptr;
+			Control->AddSlot(Options[Index], false).Text(FText::FromString(Options[Index])).Icon(Icon);
 		}
 		Control->RebuildChildren();
 		Slater::AttachEventSink(*Control, Sink);
@@ -344,6 +377,115 @@ namespace
 		Look->CheckBox = BoxStyle;
 		KeepControlLook(*CheckBox, Look);
 		return CheckBox;
+	}
+
+	// ---- radio ----
+
+	/** What a `radio` group shows as chosen. Held as metadata on the group widget so the bind targets can reach it. */
+	class FSlaterRadioState : public ISlateMetaData
+	{
+	public:
+		SLATE_METADATA_TYPE(FSlaterRadioState, ISlateMetaData)
+
+		TAttribute<FString> Selected;
+		/** True once a polled bind owns Selected, so a click leaves it to the data. */
+		bool bPolled = false;
+	};
+
+	FSlaterBindTarget RadioSelectedBind()
+	{
+		FSlaterBindTarget Target;
+		Target.Apply = [](SWidget& Widget, const FSlaterValue& Value, const ISlaterStyleSource&)
+		{
+			const TSharedPtr<FSlaterRadioState> State = Widget.GetMetaData<FSlaterRadioState>();
+			State->Selected = Value.Text;
+			State->bPolled = false;
+		};
+		Target.ApplyPolled = [](SWidget& Widget, TFunction<FSlaterValue()> Get, const ISlaterStyleSource&)
+		{
+			const TSharedPtr<FSlaterRadioState> State = Widget.GetMetaData<FSlaterRadioState>();
+			State->Selected = TAttribute<FString>::CreateLambda([Get = MoveTemp(Get)]() { return Get().Text; });
+			State->bPolled = true;
+		};
+		return Target;
+	}
+
+	TSharedPtr<SWidget> BuildRadio(FSlaterBuildContext& Context)
+	{
+		const TArray<FString> Options = SegmentedOptions(Context.GetText(TEXT("options")));
+		if (Options.IsEmpty())
+		{
+			Context.Failure = TEXT("<radio> needs at least one choice in options=\"A, B, C\"");
+			return nullptr;
+		}
+		// A round box: a ring in the Accent color around a white middle when chosen, an empty ring otherwise.
+		const TSharedRef<FCheckBoxStyle> DotStyle = MakeShared<FCheckBoxStyle>(FCoreStyle::Get().GetWidgetStyle<FCheckBoxStyle>("Checkbox"));
+		const FLinearColor AccentColor(0.18f, 0.43f, 0.92f);
+		const FLinearColor RingFill = ControlColor(Context, TEXT("UI.Color.Control"), FLinearColor::White);
+		const FLinearColor RingLine = ControlColor(Context, TEXT("UI.Color.ControlLine"), FLinearColor(0.55f, 0.58f, 0.63f));
+		const FLinearColor LabelColor = ControlColor(Context, TEXT("UI.Color.Text"), FLinearColor::Black);
+		const FSlaterSurface Ring = ControlSurface(Context, TEXT("UI.Surface.Radio"), MakeControlSurface(RingFill, RingLine, 1.f, 8.f));
+		const FSlaterSurface RingHover = ControlSurface(Context, TEXT("UI.Surface.Radio.Hover"), Ring);
+		const FSlaterSurface RingChosen = ControlSurface(Context, TEXT("UI.Surface.Radio.Checked"), MakeControlSurface(FLinearColor::White, AccentColor, 5.f, 8.f));
+		const FSlaterSurface RingChosenHover = ControlSurface(Context, TEXT("UI.Surface.Radio.Checked.Hover"), RingChosen);
+		const FVector2f DotSize(16.f, 16.f);
+		DotStyle->SetUncheckedImage(ControlBrush(Ring, DotSize));
+		DotStyle->SetUncheckedHoveredImage(ControlBrush(RingHover, DotSize));
+		DotStyle->SetUncheckedPressedImage(ControlBrush(RingHover, DotSize));
+		DotStyle->SetCheckedImage(ControlBrush(RingChosen, DotSize));
+		DotStyle->SetCheckedHoveredImage(ControlBrush(RingChosenHover, DotSize));
+		DotStyle->SetCheckedPressedImage(ControlBrush(RingChosenHover, DotSize));
+		DotStyle->SetUndeterminedImage(ControlBrush(RingChosen, DotSize));
+		DotStyle->SetUndeterminedHoveredImage(ControlBrush(RingChosenHover, DotSize));
+		DotStyle->SetUndeterminedPressedImage(ControlBrush(RingChosenHover, DotSize));
+		const FSlateColor Untinted(FLinearColor::White);
+		DotStyle->SetForegroundColor(Untinted);
+		DotStyle->SetHoveredForegroundColor(Untinted);
+		DotStyle->SetPressedForegroundColor(Untinted);
+		DotStyle->SetCheckedForegroundColor(Untinted);
+		DotStyle->SetCheckedHoveredForegroundColor(Untinted);
+		DotStyle->SetCheckedPressedForegroundColor(Untinted);
+		DotStyle->SetUndeterminedForegroundColor(Untinted);
+
+		const TSharedRef<FSlaterRadioState> State = MakeShared<FSlaterRadioState>();
+		const FString Selected = Context.GetText(TEXT("selected"));
+		State->Selected = Options.Contains(Selected) ? Selected : Options[0];
+		const TSharedRef<FSlaterEventSink> Sink = MakeShared<FSlaterEventSink>();
+		const bool bHorizontal = Context.GetEnum(TEXT("direction")) == FName(TEXT("horizontal"));
+		const TSharedRef<SPanel> Group = bHorizontal ? StaticCastSharedRef<SPanel>(SNew(SHorizontalBox)) : StaticCastSharedRef<SPanel>(SNew(SVerticalBox));
+		for (const FString& Option : Options)
+		{
+			const TSharedRef<SWidget> Row = SNew(SCheckBox)
+				.Style(&*DotStyle)
+				.Padding(FMargin(6.f, 0.f, 0.f, 0.f))
+				.IsChecked_Lambda([State, Option]() { return State->Selected.Get() == Option ? ECheckBoxState::Checked : ECheckBoxState::Unchecked; })
+				.OnCheckStateChanged_Lambda([State, Sink, Option](ECheckBoxState)
+				{
+					// A radio never unticks itself: pressing the chosen one keeps it.
+					if (!State->bPolled)
+					{
+						State->Selected = Option;
+					}
+					Sink->Fire(Slater::Attr::OnChange, Option);
+				})
+				[
+					SNew(STextBlock).Text(FText::FromString(Option)).ColorAndOpacity(FSlateColor(LabelColor))
+				];
+			if (bHorizontal)
+			{
+				StaticCastSharedRef<SHorizontalBox>(Group)->AddSlot().AutoWidth().Padding(0.f, 0.f, 12.f, 0.f)[Row];
+			}
+			else
+			{
+				StaticCastSharedRef<SVerticalBox>(Group)->AddSlot().AutoHeight().Padding(0.f, 2.f)[Row];
+			}
+		}
+		Group->AddMetadata(State);
+		Slater::AttachEventSink(*Group, Sink);
+		const TSharedRef<FSlaterControlLook> Look = MakeShared<FSlaterControlLook>();
+		Look->CheckBox = DotStyle;
+		KeepControlLook(*Group, Look);
+		return Group;
 	}
 
 	// ---- textbox ----
@@ -435,8 +577,8 @@ namespace
 		{
 			Result = SNew(SMultiLineEditableTextBox)
 				.Style(&*BoxStyle)
-				.Text(FText::FromString(Context.GetText(TEXT("text"))))
-				.HintText(FText::FromString(Context.GetText(TEXT("hint"))))
+				.Text(Slater::MakeLiteralText(Context.GetText(TEXT("text")), Context.GetText(TEXT("loc"))))
+				.HintText(Slater::MakeLiteralText(Context.GetText(TEXT("hint")), Context.GetText(TEXT("loc")), TEXT(".hint")))
 				.Font(FCoreStyle::GetDefaultFontStyle(Font.Role, Font.Size))
 				.IsReadOnly(bReadOnly)
 				.SelectAllTextWhenFocused(bSelectAll)
@@ -450,8 +592,8 @@ namespace
 		{
 			Result = SNew(SEditableTextBox)
 				.Style(&*BoxStyle)
-				.Text(FText::FromString(Context.GetText(TEXT("text"))))
-				.HintText(FText::FromString(Context.GetText(TEXT("hint"))))
+				.Text(Slater::MakeLiteralText(Context.GetText(TEXT("text")), Context.GetText(TEXT("loc"))))
+				.HintText(Slater::MakeLiteralText(Context.GetText(TEXT("hint")), Context.GetText(TEXT("loc")), TEXT(".hint")))
 				.Font(FCoreStyle::GetDefaultFontStyle(Font.Role, Font.Size))
 				.IsReadOnly(bReadOnly)
 				.IsPassword(Context.GetBool(TEXT("password")))
@@ -516,6 +658,7 @@ void Slater::RegisterControlElements(FSlaterElementRegistry& Registry)
 	SegmentedDesc.Purpose = TEXT("a row of choices with one selected; options is a comma list, on-change gets the chosen option");
 	SegmentedDesc.Attributes = {
 		OptionsAttr,
+		ControlAttr(TEXT("icons"), ESlaterAttrType::Text),
 		ControlWithBind(ControlAttr(TEXT("selected"), ESlaterAttrType::Text), SegmentedSelectedBind()),
 		EventAttribute(TEXT("on-change")),
 	};
@@ -536,6 +679,20 @@ void Slater::RegisterControlElements(FSlaterElementRegistry& Registry)
 	CheckBoxDesc.Builder = &BuildCheckBox;
 	const bool bCheckBox = Registry.Register(MoveTemp(CheckBoxDesc), &Error);
 	ensureMsgf(bCheckBox, TEXT("SlaterUI stock element <checkbox>: %s"), *Error);
+
+	FSlaterElementDesc RadioDesc;
+	RadioDesc.Tag = TEXT("radio");
+	RadioDesc.Purpose = TEXT("a group of round boxes with one chosen; options is a comma list, on-change gets the chosen option");
+	RadioDesc.Attributes = {
+		OptionsAttr,
+		ControlWithBind(ControlAttr(TEXT("selected"), ESlaterAttrType::Text), RadioSelectedBind()),
+		ControlEnumAttr(TEXT("direction"), {TEXT("vertical"), TEXT("horizontal")}),
+		EventAttribute(TEXT("on-change")),
+	};
+	RadioDesc.Children = ESlaterChildRule::None;
+	RadioDesc.Builder = &BuildRadio;
+	const bool bRadio = Registry.Register(MoveTemp(RadioDesc), &Error);
+	ensureMsgf(bRadio, TEXT("SlaterUI stock element <radio>: %s"), *Error);
 
 	FSlaterElementDesc TextBoxDesc;
 	TextBoxDesc.Tag = TEXT("textbox");

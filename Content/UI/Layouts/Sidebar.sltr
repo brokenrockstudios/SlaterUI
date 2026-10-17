@@ -6,7 +6,7 @@
 <hbox>
 	<state name="expanded" default="true"/>
 	<template name="nav-item" params="icon label">
-		<surface role="UI.Surface.Button" inset="UI.Space.M" margin="UI.Space.S" height="40">
+		<surface role="UI.Surface.Button" inset="UI.Space.M" margin="UI.Space.S" height="40" tooltip="$label">
 			<hbox>
 				<image src="$icon" size="20" valign="center"/>
 				<spacer visible-when="expanded=true" width="UI.Space.M"/>
@@ -17,7 +17,7 @@
 	<surface role="UI.Surface.Panel" inset="UI.Space.M" height="440" clip="true" width-by="expanded: true=UI.Size.SidebarOpen, false=UI.Size.SidebarRail" transition="UI.Motion.Panel">
 		<vbox>
 			<hbox>
-				<surface id="Hamburger" role="UI.Surface.Button" inset="UI.Space.M" margin="UI.Space.S" on-click="ui.toggle:expanded">
+				<surface id="Hamburger" role="UI.Surface.Button" inset="UI.Space.M" margin="UI.Space.S" tooltip="Toggle sidebar" on-click="ui.toggle:expanded">
 					<image src="Menu" size="20"/>
 				</surface>
 				<text id="Title" visible-when="expanded=true" font="UI.Font.Heading" valign="center" margin="UI.Space.S">Skybrook</text>

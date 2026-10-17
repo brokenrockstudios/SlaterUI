@@ -1,0 +1,202 @@
+<?xml version="1.0"?>
+<!-- A page of the stock controls, laid out like the Widgets tab of the engine's Starship Gallery, to see them side by side and to spot what is missing. The left column is buttons, selection and number controls, the right column is text entry, progress and bars. Controls SlaterUI does not have yet show as a red TODO line in their row. Every control is literal (nothing is bound), so the page needs no context. The white SVG icons take a tint, and Home stands in for the gallery's cube icon. Toggles are two surfaces swapped by a view state, because a toggle look from state is T-401. -->
+<surface role="UI.Surface.Background" inset="UI.Space.L" width="1300">
+	<state name="ToggleA" default="true"/>
+	<state name="ToggleB" default="true"/>
+	<state name="ToggleC" default="false"/>
+	<state name="ToolA" default="false"/>
+	<state name="ToolB" default="true"/>
+
+	<template name="row-label" params="what">
+		<text width="240" justify="right" color="UI.Color.TextMuted" valign="center" margin="UI.Space.M">$what</text>
+	</template>
+	<template name="todo" params="what">
+		<text font="UI.Font.Caption" color="UI.Color.Danger" valign="center" margin="UI.Space.S">TODO: $what</text>
+	</template>
+	<template name="btn" params="role ink label">
+		<button role="$role" inset="UI.Space.M" margin="UI.Space.S" valign="center">
+			<text color="$ink">$label</text>
+		</button>
+	</template>
+	<template name="icon-btn" params="role ink icon label">
+		<button role="$role" inset="UI.Space.M" margin="UI.Space.S" valign="center">
+			<hbox>
+				<image src="$icon" size="16" tint="$ink" valign="center"/>
+				<spacer width="UI.Space.M"/>
+				<text color="$ink" valign="center">$label</text>
+			</hbox>
+		</button>
+	</template>
+	<template name="icon-only-btn" params="role ink icon">
+		<button role="$role" inset="UI.Space.M" margin="UI.Space.S" valign="center">
+			<image src="$icon" size="16" tint="$ink"/>
+		</button>
+	</template>
+	<template name="toggle-text" params="key label">
+		<overlay valign="center" margin="UI.Space.S">
+			<button visible-when="$key=true" role="UI.Surface.Button" inset="UI.Space.M" on-click="ui.toggle:$key">
+				<text color="#FFFFFF">$label</text>
+			</button>
+			<button visible-when="$key=false" role="UI.Surface.Inset" inset="UI.Space.M" on-click="ui.toggle:$key">
+				<text>$label</text>
+			</button>
+		</overlay>
+	</template>
+	<template name="toggle" params="key icon label">
+		<overlay valign="center" margin="UI.Space.S">
+			<button visible-when="$key=true" role="UI.Surface.Button" inset="UI.Space.M" on-click="ui.toggle:$key">
+				<hbox>
+					<image src="$icon" size="16" tint="#FFFFFF" valign="center"/>
+					<spacer width="UI.Space.M"/>
+					<text color="#FFFFFF" valign="center">$label</text>
+				</hbox>
+			</button>
+			<button visible-when="$key=false" role="UI.Surface.Inset" inset="UI.Space.M" on-click="ui.toggle:$key">
+				<hbox>
+					<image src="$icon" size="16" tint="UI.Color.Text" valign="center"/>
+					<spacer width="UI.Space.M"/>
+					<text valign="center">$label</text>
+				</hbox>
+			</button>
+		</overlay>
+	</template>
+	<template name="toggle-icon" params="key icon">
+		<overlay valign="center" margin="UI.Space.S">
+			<button visible-when="$key=true" role="UI.Surface.Button" inset="UI.Space.M" on-click="ui.toggle:$key">
+				<image src="$icon" size="16" tint="#FFFFFF"/>
+			</button>
+			<button visible-when="$key=false" role="UI.Surface.Inset" inset="UI.Space.M" on-click="ui.toggle:$key">
+				<image src="$icon" size="16" tint="UI.Color.Text"/>
+			</button>
+		</overlay>
+	</template>
+
+	<vbox>
+		<text font="UI.Font.Heading" margin="UI.Space.M">Widget gallery</text>
+		<text font="UI.Font.Caption" color="UI.Color.TextMuted" margin="UI.Space.M">The stock controls side by side. A red TODO line is a control SlaterUI does not have yet.</text>
+		<spacer height="UI.Space.L"/>
+		<hbox>
+			<vbox fill="1">
+				<hbox min-height="44">
+					<row-label what="Primary Button"/>
+					<btn role="UI.Surface.Button" ink="#FFFFFF" label="Label"/>
+					<icon-btn role="UI.Surface.Button" ink="#FFFFFF" icon="Home" label="Label"/>
+					<icon-only-btn role="UI.Surface.Button" ink="#FFFFFF" icon="Home"/>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="Default/Secondary Button"/>
+					<btn role="UI.Surface.Inset" ink="UI.Color.Text" label="Label"/>
+					<icon-btn role="UI.Surface.Inset" ink="UI.Color.Text" icon="Home" label="Label"/>
+					<icon-only-btn role="UI.Surface.Inset" ink="UI.Color.Text" icon="Home"/>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="Simple Button"/>
+					<btn role="UI.Surface.Scrim" ink="UI.Color.Text" label="Label"/>
+					<icon-btn role="UI.Surface.Scrim" ink="UI.Color.Text" icon="Home" label="Label"/>
+					<icon-only-btn role="UI.Surface.Scrim" ink="UI.Color.Text" icon="Home"/>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="Toggle Button"/>
+					<toggle-text key="ToggleA" label="Label"/>
+					<toggle key="ToggleB" icon="Home" label="Label"/>
+					<toggle-icon key="ToggleC" icon="Home"/>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="SegmentedControl"/>
+					<segmented options="Box, Cylinder, Pyramid, Sphere" icons="Icons.box-perspective, Icons.cylinder, Icons.pyramid, Icons.sphere" selected="Box" valign="center" margin="UI.Space.S"/>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="SegmentedControl Alt"/>
+					<todo what="icon-only segmented control (segmented shows option text only)"/>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="Check Box"/>
+					<checkbox checked="false" valign="center" margin="UI.Space.M"/>
+					<checkbox checked="true" valign="center" margin="UI.Space.M"/>
+					<checkbox checked="false" enabled="false" valign="center" margin="UI.Space.M"/>
+					<checkbox checked="true" enabled="false" valign="center" margin="UI.Space.M"/>
+					<todo what="indeterminate state (T-534)"/>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="Radio Button"/>
+					<radio options="Box, Cylinder, Pyramid" selected="Box" direction="horizontal" valign="center" margin="UI.Space.M"/>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="SimpleComboBox"/>
+					<combo icon-only="true" icon-size="20" selected="home" valign="center" margin="UI.Space.S">
+						<option value="home" icon="Home"/>
+						<option value="settings" icon="Settings"/>
+						<option value="mail" icon="Mail"/>
+					</combo>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="ComboBox"/>
+					<combo options="one|Label, two|Second, three|Third" selected="one" width="140" valign="center" margin="UI.Space.S"/>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="SSlider"/>
+					<slider value="0.6" width="360" valign="center" margin="UI.Space.M"/>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="SSpinBox"/>
+					<spinbox value="12.5" min="0" max="100" step="0.5" width="360" valign="center" margin="UI.Space.M"/>
+				</hbox>
+			</vbox>
+			<spacer width="32"/>
+			<vbox fill="1">
+				<hbox min-height="44">
+					<row-label what="SEditableTextBox"/>
+					<textbox hint="This is an editable text box" min-width="320" valign="center" margin="UI.Space.S"/>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="SMultiLineEditableText"/>
+					<todo what="borderless multi-line text (textbox always draws its box)"/>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="SMultiLineEditableTextBox"/>
+					<textbox multiline="true" hint="This is a multi-line editable text box" min-width="320" height="60" valign="center" margin="UI.Space.S"/>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="SInlineEditableText"/>
+					<todo what="inline editable text (text that turns into a box on click)"/>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="SSearchBox"/>
+					<textbox hint="Search" min-width="320" valign="center" margin="UI.Space.S"/>
+					<todo what="magnifier icon and clear button"/>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="SProgressBar"/>
+					<meter value="0.6" width="320" valign="center" margin="UI.Space.M"/>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="SProgressBar marquee"/>
+					<todo what="indeterminate meter (T-534); the throbber is the only busy indicator"/>
+					<throbber size="20" valign="center" margin="UI.Space.S"/>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="Window Flash Button"/>
+					<todo what="window flash button (a window feature, not a layout element)"/>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="Menu Bar"/>
+					<btn role="UI.Surface.Scrim" ink="UI.Color.Text" label="Menu 1"/>
+					<btn role="UI.Surface.Scrim" ink="UI.Color.Text" label="Menu 2"/>
+					<todo what="menu bar element opening the popup menus"/>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="Toolbar"/>
+					<icon-btn role="UI.Surface.Scrim" ink="UI.Color.Text" icon="Home" label="Button"/>
+					<toggle key="ToolA" icon="Home" label="Toggle"/>
+					<combo options="a|Dropdown, b|Second" selected="a" width="130" valign="center" margin="UI.Space.S"/>
+				</hbox>
+				<hbox min-height="44">
+					<row-label what="Toolbar 2"/>
+					<icon-btn role="UI.Surface.Inset" ink="UI.Color.Text" icon="Home" label="Button"/>
+					<toggle key="ToolB" icon="Home" label="Toggle"/>
+					<combo options="a|Dropdown, b|Second" selected="a" width="130" valign="center" margin="UI.Space.S"/>
+				</hbox>
+			</vbox>
+		</hbox>
+	</vbox>
+</surface>

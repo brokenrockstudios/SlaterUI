@@ -1,0 +1,7 @@
+{
+	"PlayerName": "Rook",
+	"Health": 20,
+	"MaxHealth": 100,
+	"HealthFraction": 0.2,
+	"IsLow": true
+}

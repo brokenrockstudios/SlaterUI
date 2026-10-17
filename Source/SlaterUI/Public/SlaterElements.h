@@ -304,6 +304,14 @@ namespace Slater
 
 	/** Attributes a child can carry for its parent's slot: `fill margin halign valign`. */
 	SLATERUI_API const TArray<FSlaterAttrDesc>& SlotAttributes();
+
+	/**
+	 * The text of a layout literal (T-535). With an empty `Loc` it is `FText::FromString(Literal)`. `Loc` is the element's `loc` attribute,
+	 * `Key` or `Namespace/Key` (namespace `Slater` when there is none); the text then carries that namespace and key (`Key` plus `Suffix`,
+	 * for example `.hint`) with the literal as its source string, so the engine's localization lookup can replace it for the active culture.
+	 * A translation whose source string differs from the literal is ignored, as for any `FText`.
+	 */
+	SLATERUI_API FText MakeLiteralText(const FString& Literal, const FString& Loc, const TCHAR* Suffix = TEXT(""));
 }
 
 /** Above this a layout gets a warning, not an error. Guesses until T-349 and T-351 show real sizes. */
@@ -355,6 +363,13 @@ struct FSlaterBoundEvent
 	TSharedPtr<const FSlaterEventSpec> Spec;
 };
 
+/** A command an `on-click` or element event names (T-566), for a view to check against its tables. Stock commands are included. */
+struct FSlaterCommandRef
+{
+	FName Name;
+	FSlaterPos Pos;
+};
+
 struct SLATERUI_API FSlaterBuildResult
 {
 	/** Null when there are errors. */
@@ -381,6 +396,8 @@ struct SLATERUI_API FSlaterBuildResult
 	TArray<FSlaterStateCondition> StateConditions;
 	/** Elements with `width-by` / `height-by` (T-405), for the view to resize when a state changes. */
 	TArray<FSlaterStateSize> StateSizes;
+	/** Every command the layout names (`on-click`, `on-change`, ...), templates and repeats included, in file order (T-566). */
+	TArray<FSlaterCommandRef> Commands;
 
 	bool Succeeded() const { return Errors.Num() == 0 && Root.IsValid(); }
 };

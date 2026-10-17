@@ -284,6 +284,155 @@ TEST_CLASS(SlaterChamferTests, "BRS.SlaterUI.Chamfer")
 	}
 };
 
+/** `shadow` and `shadow-color` on `surface` (T-823): the attributes, the default color, the refusals, and that layout is untouched. No world, no RHI. */
+TEST_CLASS(SlaterShadowTests, "BRS.SlaterUI.Shadow")
+{
+	TEST_METHOD(Surface_WithoutShadow_HasNone)
+	{
+		const FSlaterBuildResult Result = ChBuild(TEXT("<vbox><surface role='UI.Surface.Panel'><text>x</text></surface></vbox>"));
+		ASSERT_THAT(IsTrue(Result.Succeeded()));
+		ASSERT_THAT(IsFalse(ChSurface(Result)->HasShadow()));
+	}
+
+	TEST_METHOD(Surface_Shadow_ReadsBackTheOffset_AndDefaultsToHalfBlack)
+	{
+		const FSlaterBuildResult Result = ChBuild(TEXT("<vbox><surface role='UI.Surface.Panel' shadow='4'><text>x</text></surface></vbox>"));
+		ASSERT_THAT(IsTrue(Result.Succeeded()));
+		const TSharedPtr<SSlaterSurface> Surface = ChSurface(Result);
+		ASSERT_THAT(IsTrue(Surface->HasShadow()));
+		ASSERT_THAT(IsTrue(FMath::IsNearlyEqual(Surface->GetShadowOffset(), 4.f)));
+		ASSERT_THAT(IsTrue(Surface->GetShadowColor().Equals(FLinearColor(0.f, 0.f, 0.f, 0.5f))));
+	}
+
+	TEST_METHOD(Surface_ShadowColor_ReadsBack)
+	{
+		const FSlaterBuildResult Result = ChBuild(TEXT("<vbox><surface role='UI.Surface.Panel' shadow='3' shadow-color='#FF0000'><text>x</text></surface></vbox>"));
+		ASSERT_THAT(IsTrue(Result.Succeeded()));
+		const FLinearColor Color = ChSurface(Result)->GetShadowColor();
+		ASSERT_THAT(IsTrue(Color.R > 0.99f && Color.G < 0.01f && Color.B < 0.01f));
+	}
+
+	TEST_METHOD(Surface_ShadowOnAChamferedSurface_IsKept)
+	{
+		const FSlaterBuildResult Result = ChBuild(TEXT("<vbox><surface role='UI.Surface.Panel' shape='chamfer' cut='10' shadow='5'><text>x</text></surface></vbox>"));
+		ASSERT_THAT(IsTrue(Result.Succeeded()));
+		const TSharedPtr<SSlaterSurface> Surface = ChSurface(Result);
+		ASSERT_THAT(IsTrue(Surface->IsChamfered()));
+		ASSERT_THAT(IsTrue(FMath::IsNearlyEqual(Surface->GetShadowOffset(), 5.f)));
+	}
+
+	TEST_METHOD(Surface_Shadow_TakesAMetricToken)
+	{
+		const FSlaterBuildResult Result = ChBuild(TEXT("<vbox><surface role='UI.Surface.Panel' shadow='UI.Space.L'><text>x</text></surface></vbox>"));
+		ASSERT_THAT(IsTrue(Result.Succeeded()));
+		FSlaterStyleStack Stack;
+		Slater::StyleLibrary().BuildStack(TEXT("Base"), Stack);
+		float Space = 0.f;
+		ASSERT_THAT(IsTrue(Stack.FindMetric(TEXT("UI.Space.L"), Space) && Space > 0.f));
+		ASSERT_THAT(IsTrue(FMath::IsNearlyEqual(ChSurface(Result)->GetShadowOffset(), Space)));
+	}
+
+	TEST_METHOD(Surface_Shadow_DoesNotChangeTheDesiredSize)
+	{
+		const FSlaterBuildResult Plain = ChBuild(TEXT("<vbox><surface role='UI.Surface.Panel'><text>x</text></surface></vbox>"));
+		const FSlaterBuildResult Shadowed = ChBuild(TEXT("<vbox><surface role='UI.Surface.Panel' shadow='12'><text>x</text></surface></vbox>"));
+		ASSERT_THAT(IsTrue(Plain.Succeeded() && Shadowed.Succeeded()));
+		const TSharedPtr<SSlaterSurface> A = ChSurface(Plain);
+		const TSharedPtr<SSlaterSurface> B = ChSurface(Shadowed);
+		A->SlatePrepass(1.f);
+		B->SlatePrepass(1.f);
+		ASSERT_THAT(IsTrue(A->GetDesiredSize().Equals(B->GetDesiredSize())));
+	}
+
+	TEST_METHOD(Surface_ShadowColorWithoutShadow_IsRefused_AndSaysWhatToWrite)
+	{
+		const FSlaterBuildResult Result = ChBuild(TEXT("<vbox><surface role='UI.Surface.Panel' shadow-color='#000000'><text>x</text></surface></vbox>"));
+		ASSERT_THAT(IsFalse(Result.Succeeded()));
+		ASSERT_THAT(IsTrue(ChHasError(Result, TEXT("shadow-color needs shadow"))));
+	}
+
+	TEST_METHOD(Surface_ANegativeShadow_IsRefused)
+	{
+		const FSlaterBuildResult Result = ChBuild(TEXT("<vbox><surface role='UI.Surface.Panel' shadow='-2'><text>x</text></surface></vbox>"));
+		ASSERT_THAT(IsFalse(Result.Succeeded()));
+		ASSERT_THAT(IsTrue(ChHasError(Result, TEXT("must not be negative"))));
+	}
+
+	TEST_METHOD(SetShadow_WithZero_TurnsItOff)
+	{
+		const FSlaterBuildResult Result = ChBuild(TEXT("<vbox><surface role='UI.Surface.Panel' shadow='4'><text>x</text></surface></vbox>"));
+		ASSERT_THAT(IsTrue(Result.Succeeded()));
+		const TSharedPtr<SSlaterSurface> Surface = ChSurface(Result);
+		Surface->SetShadow(0.f);
+		ASSERT_THAT(IsFalse(Surface->HasShadow()));
+	}
+};
+
+/**
+ * Draws a plain and a chamfered surface with a shadow on a blue page (T-823): the shadow shows below and to the right of
+ * the card, under it, and follows the card's shape (the cut corner has none). Writes Saved/SlaterUI/Render/Shadow.png.
+ * Needs a real RHI (`-WithRHI`).
+ */
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FSlaterRenderShadowTest, "BRS.SlaterUI.Render.Shadow", EAutomationTestFlags::EditorContext | EAutomationTestFlags::EngineFilter)
+
+bool FSlaterRenderShadowTest::RunTest(const FString&)
+{
+	if (GUsingNullRHI)
+	{
+		AddInfo(TEXT("Skipped: requires a real RHI (run with -WithRHI)."));
+		return true;
+	}
+	if (!FSlateApplication::IsInitialized() || !FSlateApplication::Get().GetRenderer())
+	{
+		AddInfo(TEXT("Skipped: no Slate renderer in this run."));
+		return true;
+	}
+
+	// Left: a red card with a solid black shadow of 8. Right: the same with the bottom right corner cut by 16.
+	FSlaterSurface Card;
+	Card.Fill = FLinearColor(1.f, 0.f, 0.f);
+	const TSharedRef<SSlaterSurface> Left = SNew(SSlaterSurface).Surface(Card);
+	Left->SetShadow(8.f, FLinearColor(0.f, 0.f, 0.f, 1.f));
+	const TSharedRef<SSlaterSurface> Right = SNew(SSlaterSurface).Surface(Card);
+	FSlaterChamfer Cuts;
+	Cuts.BottomRight = 16.f;
+	Right->SetChamfer(Cuts);
+	Right->SetShadow(8.f, FLinearColor(0.f, 0.f, 0.f, 1.f));
+
+	const TSharedRef<SWidget> Scene = SNew(SOverlay)
+		+ SOverlay::Slot()[SNew(SColorBlock).Color(FLinearColor(0.f, 0.f, 1.f)).Size(FVector2D(160.0, 80.0))]
+		+ SOverlay::Slot().HAlign(HAlign_Left).VAlign(VAlign_Top).Padding(10.f, 10.f, 0.f, 0.f)[SNew(SBox).WidthOverride(50).HeightOverride(40)[Left]]
+		+ SOverlay::Slot().HAlign(HAlign_Left).VAlign(VAlign_Top).Padding(90.f, 10.f, 0.f, 0.f)[SNew(SBox).WidthOverride(50).HeightOverride(40)[Right]];
+
+	TArray<FColor> Pixels;
+	int32 Width = 0;
+	if (!TestTrue(TEXT("Rendered and read back"), ChRender(Scene, FVector2D(160.0, 80.0), Pixels, Width)))
+	{
+		return false;
+	}
+	ChSavePng(Pixels, Width, TEXT("Shadow.png"));
+	AddInfo(FPaths::ProjectSavedDir() / TEXT("SlaterUI/Render/Shadow.png"));
+
+	const FColor Blue(0, 0, 255);
+	const FColor Red(255, 0, 0);
+	const FColor Black(0, 0, 0);
+	auto At = [&](int32 X, int32 Y) { return Pixels[Y * Width + X]; };
+
+	// Left card x 10..60, y 10..50; its shadow x 18..68, y 18..58.
+	TestTrue(TEXT("The card is its fill"), ChColorNear(At(30, 30), Red, 8));
+	TestTrue(TEXT("The shadow shows to the right of the card"), ChColorNear(At(64, 30), Black, 8));
+	TestTrue(TEXT("The shadow shows below the card"), ChColorNear(At(30, 54), Black, 8));
+	TestTrue(TEXT("The shadow is under the card, not over it"), ChColorNear(At(56, 46), Red, 8));
+	TestTrue(TEXT("Beyond the offset is the page"), ChColorNear(At(72, 30), Blue, 8));
+	TestTrue(TEXT("Above and left of the card is the page"), ChColorNear(At(8, 8), Blue, 8));
+
+	// Right card x 90..140, y 10..50 with the bottom right cut 16; its shadow x 98..148, y 18..58 is cut the same way.
+	TestTrue(TEXT("The chamfered card is its fill"), ChColorNear(At(110, 30), Red, 8));
+	TestTrue(TEXT("The chamfered shadow shows to the right"), ChColorNear(At(144, 30), Black, 8));
+	TestTrue(TEXT("The shadow's own cut corner shows the page"), ChColorNear(At(146, 56), Blue, 8));
+	return true;
+}
+
 /**
  * Draws chamfered surfaces on a blue page and checks the corners (T-413): the cut corner shows the page, a square corner
  * and the middle show the fill, a border is drawn on the cut edge, and the cut edge is anti-aliased. Writes

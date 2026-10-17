@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<!-- Examples/HealthHud (T-554): a UObject view model. {PlayerName}, {Health}, {MaxHealth}, {HealthFraction} and {IsLow} are
+     fields of USlaterHealthHudViewModel (SlaterHealthHud.h); the meter and texts follow it as a timer drains and heals it.
+     Two commands, HealthHud.Hurt and HealthHud.Heal, take a word of argument: HealthHud.Hurt:10. The C++ is
+     SlaterUIExamples/Private/HealthHudExample.cpp. HealthHud.mock.json lets the preview tab show it without that code. -->
+<surface role="UI.Surface.Panel" inset="UI.Space.L" width="320">
+	<vbox>
+		<text font="UI.Font.Heading" margin="UI.Space.S">{PlayerName}</text>
+		<hbox margin="UI.Space.S">
+			<text font="UI.Font.Heading" valign="center">{Health}</text>
+			<text color="UI.Color.TextMuted" margin="UI.Space.S" valign="center">of</text>
+			<text color="UI.Color.TextMuted" valign="center">{MaxHealth}</text>
+		</hbox>
+		<meter value="{HealthFraction}" margin="UI.Space.S"/>
+		<text color="UI.Color.TextMuted" margin="UI.Space.S" visible="{IsLow}">Low health!</text>
+		<hbox margin="UI.Space.M" halign="right">
+			<surface role="UI.Surface.Panel" inset="UI.Space.M" margin="UI.Space.S" on-click="HealthHud.Hurt:10">
+				<text>Hurt 10</text>
+			</surface>
+			<surface role="UI.Surface.Button" inset="UI.Space.M" margin="UI.Space.S" on-click="HealthHud.Heal:10">
+				<text color="#FFFFFF">Heal 10</text>
+			</surface>
+		</hbox>
+	</vbox>
+</surface>

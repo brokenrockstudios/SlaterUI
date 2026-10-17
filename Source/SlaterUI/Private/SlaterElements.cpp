@@ -8,7 +8,11 @@
 #include "SlaterCommands.h"
 #include "SlaterEvents.h"
 #include "SlaterOutlet.h"
+#include "SlaterSurface.h"
+#include "Styling/StyleDefaults.h"
 #include "Widgets/Layout/SBox.h"
+#include "Widgets/Text/STextBlock.h"
+#include "Widgets/SToolTip.h"
 #include "Widgets/SNullWidget.h"
 #include "Widgets/SWidget.h"
 
@@ -112,6 +116,7 @@ namespace
 	const FName AttrPadding(TEXT("padding"));
 	const FName AttrVisible(TEXT("visible"));
 	const FName AttrEnabled(TEXT("enabled"));
+	const FName AttrTooltip(TEXT("tooltip"));
 	const FName AttrVisibleWhen(TEXT("visible-when"));
 	const FName AttrWidthBy(TEXT("width-by"));
 	const FName AttrHeightBy(TEXT("height-by"));
@@ -338,6 +343,86 @@ namespace
 			Widget.SetVisibility(TAttribute<EVisibility>::CreateLambda([Get = MoveTemp(Get), Shown]() { return Get().bBool ? Shown : EVisibility::Collapsed; }));
 		};
 		return Target;
+	}
+
+	/** The tooltip look: the style's menu surface, body font and menu text color (the dark popup in every style). */
+	TSharedRef<SToolTip> MakeTooltipWidget(const TAttribute<FText>& Text, const ISlaterStyleSource& Style)
+	{
+		FSlaterSurface Surface;
+		FSlaterFont Font;
+		FLinearColor TextColor = FLinearColor::White;
+		Style.FindSurface(TEXT("UI.Surface.Menu"), Surface);
+		Style.FindFont(TEXT("UI.Font.Body"), Font);
+		Style.FindColor(TEXT("UI.Color.MenuText"), TextColor);
+		return SNew(SToolTip)
+			.BorderImage(FStyleDefaults::GetNoBrush())
+			.TextMargin(FMargin(0.f))
+			[
+				SNew(SSlaterSurface)
+				.Surface(Surface)
+				.Inset(FMargin(8.f, 4.f))
+				[
+					SNew(STextBlock)
+					.Text(Text)
+					.Font(FCoreStyle::GetDefaultFontStyle(Font.Role, Font.Size))
+					.ColorAndOpacity(TextColor)
+				]
+			];
+	}
+
+	/** `tooltip`: text shown by the engine's tooltip machinery after the pointer rests on the element. An empty value shows none. */
+	FSlaterBindTarget TooltipBind()
+	{
+		FSlaterBindTarget Target;
+		Target.bOutermost = true;
+		Target.Apply = [](SWidget& Widget, const FSlaterValue& Value, const ISlaterStyleSource& Style)
+		{
+			if (Value.Text.IsEmpty())
+			{
+				Widget.SetToolTip(nullptr);
+			}
+			else
+			{
+				Widget.SetToolTip(MakeTooltipWidget(FText::FromString(Value.Text), Style));
+			}
+		};
+		Target.ApplyPolled = [](SWidget& Widget, TFunction<FSlaterValue()> Get, const ISlaterStyleSource& Style)
+		{
+			Widget.SetToolTip(MakeTooltipWidget(TAttribute<FText>::CreateLambda([Get = MoveTemp(Get)]() { return FText::FromString(Get().Text); }), Style));
+		};
+		return Target;
+	}
+
+	/** `loc="Key"` or `loc="Namespace/Key"`: words of letters, digits, `_`, `-` and dots, at most one slash with a word on each side. */
+	FSlaterAttrDesc MakeLocAttr()
+	{
+		FSlaterAttrDesc Desc = MakeAttr(TEXT("loc"), ESlaterAttrType::Text);
+		Desc.CheckText = [](const FString& Text)
+		{
+			FString Namespace, Key;
+			if (!Text.Split(TEXT("/"), &Namespace, &Key))
+			{
+				Key = Text;
+			}
+			const auto IsWord = [](const FString& Word)
+			{
+				if (Word.IsEmpty())
+				{
+					return false;
+				}
+				for (const TCHAR Char : Word)
+				{
+					if (!FChar::IsAlnum(Char) && Char != TEXT('_') && Char != TEXT('-') && Char != TEXT('.'))
+					{
+						return false;
+					}
+				}
+				return true;
+			};
+			const bool bNamespaceOk = Namespace.IsEmpty() ? !Text.Contains(TEXT("/")) : IsWord(Namespace);
+			return bNamespaceOk && IsWord(Key) ? FString() : FString::Printf(TEXT("'%s' is not a localization key: write Key or Namespace/Key, for example loc=\"Menu.Play\" or loc=\"Inventory/Title\""), *Text);
+		};
+		return Desc;
 	}
 
 	FSlaterAttrDesc MakeVisibleWhenAttr()
@@ -1142,6 +1227,14 @@ namespace
 		{
 			Widget->SetEnabled(false);
 		}
+		if (const FSlaterValue* Tooltip = Resolved.Values.Find(AttrTooltip))
+		{
+			if (!Tooltip->Text.IsEmpty())
+			{
+				const FSlaterValue* Loc = Resolved.Values.Find(TEXT("loc"));
+				Widget->SetToolTip(MakeTooltipWidget(Slater::MakeLiteralText(Tooltip->Text, Loc ? Loc->Text : FString(), TEXT(".tooltip")), Style));
+			}
+		}
 		FString WhenKey, WhenValue;
 		if (VisibleWhen && Slater::ParseStatePair(VisibleWhen->Text, WhenKey, WhenValue))
 		{
@@ -1210,6 +1303,8 @@ namespace Slater
 			MakeAttr(TEXT("padding"), ESlaterAttrType::Metric),
 			WithBind(MakeAttr(TEXT("visible"), ESlaterAttrType::Bool), VisibleBind()),
 			WithBind(MakeAttr(TEXT("enabled"), ESlaterAttrType::Bool), EnabledBind()),
+			WithBind(MakeAttr(TEXT("tooltip"), ESlaterAttrType::Text), TooltipBind()),
+			MakeLocAttr(),
 			MakeVisibleWhenAttr(),
 			MakeSizeByAttr(TEXT("width-by")),
 			MakeSizeByAttr(TEXT("height-by")),
@@ -1217,6 +1312,21 @@ namespace Slater
 			MakeAttr(TEXT("clip"), ESlaterAttrType::Bool),
 		};
 		return Attributes;
+	}
+
+	FText MakeLiteralText(const FString& Literal, const FString& Loc, const TCHAR* Suffix)
+	{
+		if (Loc.IsEmpty())
+		{
+			return FText::FromString(Literal);
+		}
+		FString Namespace, Key;
+		if (!Loc.Split(TEXT("/"), &Namespace, &Key))
+		{
+			Namespace = TEXT("Slater");
+			Key = Loc;
+		}
+		return FText::ChangeKey(FTextKey(Namespace), FTextKey(Key + Suffix), FText::FromString(Literal));
 	}
 
 	const TArray<FSlaterAttrDesc>& SlotAttributes()
@@ -1418,6 +1528,27 @@ namespace Slater
 		Measure(*Root, 1, OutCount, OutDepth);
 	}
 
+	/** `on-click` and the `on-` events that name a command (not a `{Path}`), on the expanded tree, so templates and repeats are covered. */
+	static void CollectCommandRefs(const FSlaterNode& Node, TArray<FSlaterCommandRef>& Out)
+	{
+		for (const FSlaterAttribute& Attr : Node.Attributes)
+		{
+			if (Attr.Name.StartsWith(TEXT("on-"), ESearchCase::CaseSensitive) && !IsBindingExpr(Attr.Value))
+			{
+				FString Name, Argument;
+				SplitCommandText(Attr.Value, Name, Argument);
+				if (IsValidCommandName(Name))
+				{
+					Out.Add({FName(*Name), Attr.Pos});
+				}
+			}
+		}
+		for (const FSlaterNode& Child : Node.Children)
+		{
+			CollectCommandRefs(Child, Out);
+		}
+	}
+
 	bool BuildLayout(const FSlaterNode& Root, const FString& Path, const ISlaterStyleSource& Style, FSlaterBuildResult& Out, const FSlaterBudget& Budget, const FSlaterElementRegistry& Registry)
 	{
 		Out = FSlaterBuildResult();
@@ -1449,6 +1580,7 @@ namespace Slater
 			Out.States.Reset();
 			return false;
 		}
+		CollectCommandRefs(*Source, Out.Commands);
 		FLayoutBuilder Builder(Path, Style, Registry, Out);
 		FSlaterSlotValues RootSlot;
 		Out.Root = Builder.Build(*Source, nullptr, RootSlot);

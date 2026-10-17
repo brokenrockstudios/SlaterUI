@@ -87,6 +87,22 @@ namespace
 			}
 		}
 
+		float ShadowOffset = 0.f;
+		if (Context.Has(TEXT("shadow-color")) && !Context.Has(TEXT("shadow")))
+		{
+			Context.Failure = TEXT("<surface> shadow-color needs shadow, the offset in pixels, for example shadow=\"4\" shadow-color=\"#00000080\"");
+			return nullptr;
+		}
+		if (Context.Has(TEXT("shadow")))
+		{
+			ShadowOffset = Context.GetMetric(TEXT("shadow"));
+			if (ShadowOffset < 0.f)
+			{
+				Context.Failure = TEXT("<surface> shadow must not be negative");
+				return nullptr;
+			}
+		}
+
 		// The child's margin and the surface's inset share the border's one padding; they add. Everything goes in through
 		// the construction arguments: a setter on a fresh widget only invalidates it.
 		const bool bHasChild = Context.Children.Num() > 0;
@@ -101,6 +117,10 @@ namespace
 		if (bChamfer)
 		{
 			Widget->SetChamfer(Chamfer);
+		}
+		if (ShadowOffset > 0.f)
+		{
+			Widget->SetShadow(ShadowOffset, Context.GetColor(TEXT("shadow-color"), FLinearColor(0.f, 0.f, 0.f, 0.5f)));
 		}
 		static const FName OnClickName(TEXT("on-click"));
 		static const FName SetStateName(TEXT("set-state"));
@@ -262,7 +282,7 @@ namespace
 		const bool bBound = Slater::IsBindingExpr(Context.Node.Text);
 		// SNew(SSlaterText) would name the widget type "SSlaterText"; callers and tests look for `<text>` as "STextBlock", so the type name is kept.
 		const TSharedRef<SSlaterText> Text = MakeTDecl<SSlaterText>("STextBlock", __FILE__, __LINE__, RequiredArgs::MakeRequiredArgs()) <<= SSlaterText::FArguments()
-			.Text(bBound ? FText::GetEmpty() : FText::FromString(Context.Node.Text))
+			.Text(bBound ? FText::GetEmpty() : Slater::MakeLiteralText(Context.Node.Text, Context.GetText(TEXT("loc"))))
 			.Font(FCoreStyle::GetDefaultFontStyle(Font.Role, Font.Size))
 			.ColorAndOpacity(FSlateColor(Color))
 			.AutoWrapText(Context.GetBool(WrapName, false))
@@ -516,6 +536,8 @@ void Slater::RegisterContentElements(FSlaterElementRegistry& Registry)
 	{
 		SurfaceDesc.Attributes.Add(ContentAttr(Cut, ESlaterAttrType::Metric));
 	}
+	SurfaceDesc.Attributes.Add(ContentAttr(TEXT("shadow"), ESlaterAttrType::Metric));
+	SurfaceDesc.Attributes.Add(ContentAttr(TEXT("shadow-color"), ESlaterAttrType::Color));
 	SurfaceDesc.Children = ESlaterChildRule::One;
 	SurfaceDesc.SlotAttrs = ESlaterSlotAttrs::Margin | ESlaterSlotAttrs::HAlign | ESlaterSlotAttrs::VAlign;
 	SurfaceDesc.ResolveDefaults = &ResolveSurfaceState;

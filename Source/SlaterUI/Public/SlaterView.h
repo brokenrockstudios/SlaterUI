@@ -95,6 +95,7 @@ public:
 	SLATE_BEGIN_ARGS(SSlaterView)
 		: _StyleName(TEXT("Base"))
 		, _UseMockContext(false)
+		, _CheckCommands(false)
 	{}
 		/** The layout ID (`Panel`, `Hud/Health`). */
 		SLATE_ARGUMENT(FString, LayoutId)
@@ -103,6 +104,17 @@ public:
 		SLATE_ARGUMENT(bool, UseMockContext)
 		/** The data `{Path}` reads, in place for the first build (as `SetContext` before it, without the second build). */
 		SLATE_ARGUMENT(TSharedPtr<ISlaterScope>, Context)
+		/**
+		 * Runs before the first build, to fill this view's command table (a `Context`-like seam for commands).
+		 * Needed with `CheckCommands`, which cannot wait for `GetCommands()` after construction.
+		 */
+		SLATE_ARGUMENT(TFunction<void(FSlaterCommandTable&)>, RegisterCommands)
+		/**
+		 * Strict commands (T-566): a build fails, with the attribute's line, when an `on-click` or element event names a command
+		 * that is not stock, not in this view's table and not in the process-wide one. Off by default: the preview, a plain view
+		 * and `USlaterLayoutWidget` stay lenient (a missing command only warns when clicked), so a layout opens without its C++.
+		 */
+		SLATE_ARGUMENT(bool, CheckCommands)
 	SLATE_END_ARGS()
 
 	virtual ~SSlaterView() override;
@@ -200,6 +212,7 @@ private:
 
 	TSharedPtr<ISlaterScope> ExplicitContext;
 	bool bUseMockContext = false;
+	bool bCheckCommands = false;
 	/** What the tree on screen is bound to, and what keeps it alive. */
 	TSharedPtr<ISlaterScope> ActiveContext;
 	TSharedPtr<FSlaterModel> MockModel;

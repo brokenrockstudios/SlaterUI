@@ -7,6 +7,8 @@
 #include "SlaterCombo.h"
 #include "SlaterCommands.h"
 #include "SlaterEvents.h"
+#include "SlaterImages.h"
+#include "SlaterList.h"
 #include "SlaterListTestKit.h"
 #include "SlaterObjectScope.h"
 #include "SlaterScope.h"
@@ -238,6 +240,31 @@ TEST_CLASS(SlaterComboTests, "BRS.SlaterUI.Combo")
 		ASSERT_THAT(IsTrue(CbError(TEXT("<vbox><combo options=\"a, a|B\"/></vbox>")).Contains(TEXT("two entries have the value 'a'"))));
 		ASSERT_THAT(IsTrue(CbError(TEXT("<vbox><combo selected=\"z\"><option value=\"a\">A</option></combo></vbox>")).Contains(TEXT("selected 'z' is not one of its options (a)"))));
 		ASSERT_THAT(IsTrue(CbError(TEXT("<vbox><combo><option>A</option></combo></vbox>")).Contains(TEXT("value"))));
+	}
+
+	TEST_METHOD(AnIconOnlyCombo_ShowsTheSelectedIcon_AndPicksByValue)
+	{
+		Slater::SetImageSource(Slater::MakePluginIconSource());
+		FSlaterBuildResult Result;
+		const TSharedPtr<SSlaterCombo> Combo = CbBuild(TEXT("<vbox><combo icon-only=\"true\" selected=\"b\"><option value=\"a\" icon=\"Home\"/><option value=\"b\" icon=\"Mail\"/></combo></vbox>"), Result);
+		ASSERT_THAT(IsTrue(Combo.IsValid()));
+		ASSERT_THAT(IsTrue(Combo->IsIconOnly()));
+		ASSERT_THAT(AreEqual(Combo->GetOptions()[1]->Icon, FString(TEXT("Mail"))));
+		ASSERT_THAT(IsTrue(Combo->GetShownBrush() == Slater::FindImage(TEXT("Mail"))));
+		ASSERT_THAT(IsTrue(Combo->GetShownBrush() != nullptr));
+		Combo->PickOption(TEXT("a"));
+		ASSERT_THAT(AreEqual(Combo->GetSelectedValue(), FString(TEXT("a"))));
+		ASSERT_THAT(IsTrue(Combo->GetShownBrush() == Slater::FindImage(TEXT("Home"))));
+		Slater::SetImageSource(nullptr);
+	}
+
+	TEST_METHOD(AnIconOnlyCombo_WithAMissingOrUnknownIcon_OrAnIconOnATextCombo_IsRefused)
+	{
+		Slater::SetImageSource(Slater::MakePluginIconSource());
+		ASSERT_THAT(IsTrue(CbError(TEXT("<vbox><combo icon-only=\"true\"><option value=\"a\" icon=\"Home\"/><option value=\"b\">B</option></combo></vbox>")).Contains(TEXT("option 'b' has no icon"))));
+		ASSERT_THAT(IsTrue(CbError(TEXT("<vbox><combo icon-only=\"true\"><option value=\"a\" icon=\"NoSuchIcon\"/></combo></vbox>")).Contains(TEXT("icon 'NoSuchIcon' is not a known image"))));
+		ASSERT_THAT(IsTrue(CbError(TEXT("<vbox><combo><option value=\"a\" icon=\"Home\"/></combo></vbox>")).Contains(TEXT("not icon-only"))));
+		Slater::SetImageSource(nullptr);
 	}
 };
 

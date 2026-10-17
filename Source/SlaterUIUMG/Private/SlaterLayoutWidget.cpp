@@ -131,12 +131,14 @@ TSharedRef<SWidget> USlaterLayoutUserWidget::RebuildWidget()
 	{
 		Context = Slater::MakeObjectScope(Object);
 	}
+	// Commands go in before the first build, which checks every command the layout names (T-566).
 	const TSharedRef<SSlaterView> NewView = SNew(SSlaterView)
 		.LayoutId(LayoutId)
 		.StyleName(StyleName.IsNone() ? FName(TEXT("Base")) : StyleName)
-		.Context(Context);
+		.Context(Context)
+		.CheckCommands(true)
+		.RegisterCommands([this](FSlaterCommandTable& Commands) { RegisterCommands(Commands); });
 	View = NewView;
-	RegisterCommands(NewView->GetCommands());
 	return NewView;
 }
 

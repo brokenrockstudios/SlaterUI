@@ -15,6 +15,8 @@ public class SlaterUIExamples : ModuleRules
 				"Core",
 				"CoreUObject",
 				"Engine",
+				"FieldNotification",
+				"ModelViewViewModel",
 				"Slate",
 				"SlateCore",
 				"SlaterUI",

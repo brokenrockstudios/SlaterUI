@@ -17,6 +17,8 @@ struct SLATERUI_API FSlaterComboOption
 {
 	FString Value;
 	FString Label;
+	/** The image name (as `image src`) an icon-only `combo` shows for this option; empty for none. */
+	FString Icon;
 };
 
 /** Metadata on the widget an `<option>` builds: how its parent `combo` reads it. */
@@ -54,6 +56,9 @@ public:
 		SLATE_ARGUMENT(FLinearColor, TextColor)
 		SLATE_ARGUMENT(FLinearColor, MenuTextColor)
 		SLATE_ARGUMENT(FString, Hint)
+		/** Show each option's icon instead of its label, in the closed box and in the menu. */
+		SLATE_ARGUMENT(bool, IconOnly)
+		SLATE_ARGUMENT(float, IconSize)
 	SLATE_END_ARGS()
 
 	void Construct(const FArguments& InArgs);
@@ -78,6 +83,9 @@ public:
 	bool FitsInWindow() const { return bFitsInWindow; }
 	/** What the closed box shows: the selected option's label, else the hint. */
 	FText GetShownText() const;
+	bool IsIconOnly() const { return bIconOnly; }
+	/** Icon-only: the brush of the selected option's icon; null when none is selected or the image is unknown. */
+	const FSlateBrush* GetShownBrush() const;
 
 	/** Picks an option as the user would (the list's selection event): selects it and reports its value. */
 	void PickOption(const FString& InValue);
@@ -103,6 +111,8 @@ private:
 	FString LastOptionsText;
 	bool bSettingFromCode = false;
 	bool bFitsInWindow = false;
+	bool bIconOnly = false;
+	float IconSize = 16.f;
 
 	TSharedRef<SWidget> MakeRow(FOptionPtr Option) const;
 	void HandleSelectionChanged(FOptionPtr Picked, ESelectInfo::Type How);

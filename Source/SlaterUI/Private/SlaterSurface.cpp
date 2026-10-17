@@ -117,6 +117,7 @@ void SSlaterSurface::Refresh()
 		return;
 	}
 	Surface = Wanted;
+	UpdateShadowBrush();
 	if (IsChamfered())
 	{
 		// Drawn in OnPaint from the surface values; the border keeps its empty brush.
@@ -142,16 +143,83 @@ void SSlaterSurface::SetChamfer(const FSlaterChamfer& InCuts)
 	}
 }
 
+namespace
+{
+	/** Fills a convex path with a color: custom vertices need a texture to sample, so the core style's white box, sampled at the middle of its area. */
+	void PaintPolygon(FSlateWindowElementList& OutDrawElements, int32 LayerId, const FGeometry& Geometry, const TArray<FVector2f>& Path, const FLinearColor& Color, ESlateDrawEffect Effects)
+	{
+		if (Color.A <= 0.f || !FSlateApplication::IsInitialized() || !FSlateApplication::Get().GetRenderer())
+		{
+			return;
+		}
+		const FSlateBrush* White = FCoreStyle::Get().GetBrush("GenericWhiteBox");
+		const FSlateResourceHandle Handle = FSlateApplication::Get().GetRenderer()->GetResourceHandle(*White);
+		const FSlateShaderResourceProxy* Proxy = Handle.GetResourceProxy();
+		if (!Proxy)
+		{
+			return;
+		}
+		const FColor Vertex = Color.ToFColorSRGB();
+		const FVector2f Uv = Proxy->StartUV + Proxy->SizeUV * 0.5f;
+		const FSlateRenderTransform& Transform = Geometry.GetAccumulatedRenderTransform();
+		TArray<FSlateVertex> Vertices;
+		TArray<SlateIndex> Indices;
+		for (const FVector2f& Point : Path)
+		{
+			Vertices.Add(FSlateVertex::Make(Transform, Point, Uv, Vertex));
+		}
+		// The polygon is convex, so a fan from the first point covers it.
+		for (int32 Index = 1; Index + 1 < Path.Num(); ++Index)
+		{
+			Indices.Add(0);
+			Indices.Add(static_cast<SlateIndex>(Index));
+			Indices.Add(static_cast<SlateIndex>(Index + 1));
+		}
+		FSlateDrawElement::MakeCustomVerts(OutDrawElements, LayerId, Handle, Vertices, Indices, nullptr, 0, 0, Effects);
+	}
+}
+
+void SSlaterSurface::SetShadow(float InOffset, const FLinearColor& InColor)
+{
+	ShadowOffset = FMath::Max(InOffset, 0.f);
+	ShadowColor = InColor;
+	UpdateShadowBrush();
+	Invalidate(EInvalidateWidgetReason::Paint);
+}
+
+void SSlaterSurface::UpdateShadowBrush()
+{
+	if (!HasShadow())
+	{
+		ShadowBrush.Reset();
+		return;
+	}
+	FSlaterSurface Shape = Surface;
+	Shape.Fill = ShadowColor;
+	Shape.Border = FLinearColor::Transparent;
+	Shape.BorderWidth = 0.f;
+	ShadowBrush = BrushFor(Shape);
+}
+
 int32 SSlaterSurface::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedGeometry, const FSlateRect& MyCullingRect, FSlateWindowElementList& OutDrawElements, int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const
 {
-	if (!IsChamfered())
-	{
-		return SBorder::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
-	}
-
 	const ESlateDrawEffect Effects = ShouldBeEnabled(bParentEnabled) ? ESlateDrawEffect::None : ESlateDrawEffect::DisabledEffect;
 	const float Opacity = InWidgetStyle.GetColorAndOpacityTint().A;
 	const FVector2f Size = AllottedGeometry.GetLocalSize();
+	// The shadow is the same shape moved down and right; it is the first thing drawn, under everything of the surface.
+	const FGeometry ShadowGeometry = AllottedGeometry.MakeChild(Size, FSlateLayoutTransform(FVector2f(ShadowOffset, ShadowOffset)));
+
+	if (!IsChamfered())
+	{
+		if (HasShadow() && ShadowBrush.IsValid())
+		{
+			FLinearColor Tint = ShadowBrush->GetTint(InWidgetStyle);
+			Tint.A *= Opacity;
+			FSlateDrawElement::MakeBox(OutDrawElements, LayerId, ShadowGeometry.ToPaintGeometry(), ShadowBrush.Get(), Effects, Tint);
+			++LayerId;
+		}
+		return SBorder::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId, InWidgetStyle, bParentEnabled);
+	}
 
 	// The outline sits inside the box, its center line half a border width in. With no border a one pixel line in the
 	// fill color is drawn on the same path: the polygon's edge has no anti-aliasing of its own, the line has.
@@ -165,35 +233,24 @@ int32 SSlaterSurface::OnPaint(const FPaintArgs& Args, const FGeometry& AllottedG
 		return SBorder::OnPaint(Args, AllottedGeometry, MyCullingRect, OutDrawElements, LayerId + 2, InWidgetStyle, bParentEnabled);
 	}
 
-	if (Surface.Fill.A > 0.f && FSlateApplication::IsInitialized() && FSlateApplication::Get().GetRenderer())
+	if (HasShadow())
 	{
-		// Custom vertices need a texture to sample; the core style's white box, sampled at the middle of its area.
-		const FSlateBrush* White = FCoreStyle::Get().GetBrush("GenericWhiteBox");
-		const FSlateResourceHandle Handle = FSlateApplication::Get().GetRenderer()->GetResourceHandle(*White);
-		const FSlateShaderResourceProxy* Proxy = Handle.GetResourceProxy();
-		if (Proxy)
+		// The silhouette of the surface in the shadow color: the polygon, and a line of the border's width over its outline.
+		FLinearColor Shade = ShadowColor;
+		Shade.A *= Opacity;
+		PaintPolygon(OutDrawElements, LayerId, ShadowGeometry, Path, Shade, Effects);
+		if (Shade.A > 0.f)
 		{
-			FLinearColor FillColor = Surface.Fill;
-			FillColor.A *= Opacity;
-			const FColor Vertex = FillColor.ToFColorSRGB();
-			const FVector2f Uv = Proxy->StartUV + Proxy->SizeUV * 0.5f;
-			const FSlateRenderTransform& Transform = AllottedGeometry.GetAccumulatedRenderTransform();
-			TArray<FSlateVertex> Vertices;
-			TArray<SlateIndex> Indices;
-			for (const FVector2f& Point : Path)
-			{
-				Vertices.Add(FSlateVertex::Make(Transform, Point, Uv, Vertex));
-			}
-			// The polygon is convex, so a fan from the first point covers it.
-			for (int32 Index = 1; Index + 1 < Path.Num(); ++Index)
-			{
-				Indices.Add(0);
-				Indices.Add(static_cast<SlateIndex>(Index));
-				Indices.Add(static_cast<SlateIndex>(Index + 1));
-			}
-			FSlateDrawElement::MakeCustomVerts(OutDrawElements, LayerId, Handle, Vertices, Indices, nullptr, 0, 0, Effects);
+			TArray<FVector2f> Outline = Path;
+			Outline.Add(Path[0]);
+			FSlateDrawElement::MakeLines(OutDrawElements, LayerId + 1, ShadowGeometry.ToPaintGeometry(), Outline, Effects, Shade, true, EdgeWidth);
 		}
+		LayerId += 2;
 	}
+
+	FLinearColor FillColor = Surface.Fill;
+	FillColor.A *= Opacity;
+	PaintPolygon(OutDrawElements, LayerId, AllottedGeometry, Path, FillColor, Effects);
 
 	EdgeColor.A *= Opacity;
 	if (EdgeColor.A > 0.f)

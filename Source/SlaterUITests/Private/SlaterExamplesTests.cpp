@@ -8,8 +8,46 @@
 #include "SlaterBindTestKit.h"
 #include "SlaterCommands.h"
 #include "SlaterExamples.h"
+#include "SlaterHealthHud.h"
 #include "SlaterHelloWidget.h"
+#include "SlaterListTestKit.h"
+#include "SlaterMeter.h"
+#include "SlaterObjectScope.h"
 #include "SlaterView.h"
+#include "UObject/StrongObjectPtr.h"
+
+namespace
+{
+	/** Whether the widget and every parent up to the root show: a `visible="false"` element collapses itself or its wrapper box. */
+	bool IsShown(TSharedPtr<SWidget> Widget)
+	{
+		for (; Widget.IsValid(); Widget = Widget->GetParentWidget())
+		{
+			if (!Widget->GetVisibility().IsVisible())
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	TSharedPtr<SWidget> FindText(const TSharedRef<SWidget>& Root, const TCHAR* Text)
+	{
+		TSharedPtr<SWidget> Found;
+		if (Root->GetType() == FName(TEXT("STextBlock")) && SlaterBindKit::TextOf(Root) == Text)
+		{
+			return Root;
+		}
+		Root->GetChildren()->ForEachWidget([&](SWidget& Child)
+		{
+			if (!Found.IsValid())
+			{
+				Found = FindText(Child.AsShared(), Text);
+			}
+		});
+		return Found;
+	}
+}
 
 /**
  * The worked examples (SlaterUIExamples, T-553): each one builds in both shipped styles with no errors, so a renamed token
@@ -118,6 +156,126 @@ TEST_CLASS(SlaterExamplesTests, "BRS.SlaterUI.Examples")
 		First->RunCommand(Add);
 		ASSERT_THAT(IsTrue(SlaterBindKit::Texts(First)[3] == TEXT("1")));
 		ASSERT_THAT(IsTrue(SlaterBindKit::Texts(Second)[3] == TEXT("0")));
+	}
+
+	TEST_METHOD(MvvmViewModelBase_PushesChangesThroughMakeObjectScope)
+	{
+		// The T-554 question: does a UMVVMViewModelBase subclass, with no Slater-specific code, work as a scope?
+		TStrongObjectPtr<USlaterHealthHudViewModel> ViewModel(NewObject<USlaterHealthHudViewModel>(GetTransientPackage()));
+		const TSharedRef<ISlaterScope> Scope = Slater::MakeObjectScope(ViewModel.Get());
+
+		// Read appends to its output, so each read starts from an empty string.
+		FString Text;
+		const auto Read = [&](const TCHAR* Path)
+		{
+			Text.Reset();
+			return Scope->Read(Path, Text);
+		};
+		for (const TCHAR* Path : { TEXT("PlayerName"), TEXT("Health"), TEXT("MaxHealth"), TEXT("HealthFraction"), TEXT("IsLow") })
+		{
+			FString Why;
+			ASSERT_THAT(IsTrue(Scope->Check(Path, false, Why), *FString::Printf(TEXT("%s: %s"), Path, *Why)));
+		}
+		ASSERT_THAT(IsTrue(Read(TEXT("Health")), TEXT("read Health")));
+		ASSERT_THAT(IsTrue(Text == TEXT("100"), *Text));
+		ASSERT_THAT(IsTrue(Read(TEXT("IsLow")), TEXT("read IsLow")));
+		ASSERT_THAT(IsTrue(Text == TEXT("false"), *Text));
+
+		int32 HealthPushes = 0;
+		int32 FractionPushes = 0;
+		int32 LowPushes = 0;
+		TUniquePtr<ISlaterSubscription> OnHealth = Scope->Subscribe(TEXT("Health"), [&HealthPushes]() { ++HealthPushes; });
+		TUniquePtr<ISlaterSubscription> OnFraction = Scope->Subscribe(TEXT("HealthFraction"), [&FractionPushes]() { ++FractionPushes; });
+		TUniquePtr<ISlaterSubscription> OnLow = Scope->Subscribe(TEXT("IsLow"), [&LowPushes]() { ++LowPushes; });
+
+		ViewModel->SetHealth(20);
+		ASSERT_THAT(AreEqual(HealthPushes, 1));
+		ASSERT_THAT(AreEqual(FractionPushes, 1)); // a UFUNCTION(FieldNotify) getter is a field of its own
+		ASSERT_THAT(AreEqual(LowPushes, 1));
+		ASSERT_THAT(IsTrue(Read(TEXT("Health"))));
+		ASSERT_THAT(IsTrue(Text == TEXT("20"), *Text));
+		ASSERT_THAT(IsTrue(Read(TEXT("IsLow"))));
+		ASSERT_THAT(IsTrue(Text == TEXT("true")));
+
+		ViewModel->SetHealth(20); // UE_MVVM_SET_PROPERTY_VALUE broadcasts only when the value changed
+		ASSERT_THAT(AreEqual(HealthPushes, 1));
+
+		OnHealth.Reset();
+		ViewModel->SetHealth(30);
+		ASSERT_THAT(AreEqual(HealthPushes, 1)); // dropping the subscription removed the delegate
+		ASSERT_THAT(AreEqual(FractionPushes, 2));
+	}
+
+	TEST_METHOD(HealthHud_IsRegistered_AndShowsTheViewModel)
+	{
+		ASSERT_THAT(IsNotNull(FSlaterExampleRegistry::Get().Find(TEXT("HealthHud"))));
+
+		TStrongObjectPtr<USlaterHealthHudViewModel> ViewModel(NewObject<USlaterHealthHudViewModel>(GetTransientPackage()));
+		ViewModel->SetPlayerName(TEXT("Wren"));
+		const TSharedRef<SSlaterView> View = SlaterExamples::MakeHealthHud(TEXT("Base"), ViewModel.Get());
+		ASSERT_THAT(IsFalse(View->HasErrors()));
+		// Name, health, "of", max, warning, then the two button labels.
+		const TArray<FString> Texts = SlaterBindKit::Texts(View);
+		ASSERT_THAT(AreEqual(Texts.Num(), 7));
+		ASSERT_THAT(IsTrue(Texts[0] == TEXT("Wren")));
+		ASSERT_THAT(IsTrue(Texts[1] == TEXT("100")));
+		ASSERT_THAT(IsTrue(Texts[3] == TEXT("100")));
+	}
+
+	TEST_METHOD(HealthHud_TheMeterAndTextsFollowTheViewModel)
+	{
+		TStrongObjectPtr<USlaterHealthHudViewModel> ViewModel(NewObject<USlaterHealthHudViewModel>(GetTransientPackage()));
+		const TSharedRef<SSlaterView> View = SlaterExamples::MakeHealthHud(TEXT("Base"), ViewModel.Get());
+		const TSharedPtr<SSlaterMeter> Meter = StaticCastSharedPtr<SSlaterMeter>(SlaterListKit::Find(View, TEXT("SSlaterMeter")));
+		ASSERT_THAT(IsTrue(Meter.IsValid()));
+		ASSERT_THAT(IsTrue(FMath::IsNearlyEqual(Meter->GetValue(), 1.f)));
+
+		ViewModel->SetHealth(50);
+		ASSERT_THAT(IsTrue(FMath::IsNearlyEqual(Meter->GetValue(), 0.5f)));
+		ASSERT_THAT(IsTrue(SlaterBindKit::Texts(View)[1] == TEXT("50")));
+
+		ViewModel->SetMaxHealth(200);
+		ASSERT_THAT(IsTrue(FMath::IsNearlyEqual(Meter->GetValue(), 0.25f)));
+		ASSERT_THAT(IsTrue(SlaterBindKit::Texts(View)[3] == TEXT("200")));
+	}
+
+	TEST_METHOD(HealthHud_LowHealth_ShowsTheWarning_AndRecoveryHidesIt)
+	{
+		TStrongObjectPtr<USlaterHealthHudViewModel> ViewModel(NewObject<USlaterHealthHudViewModel>(GetTransientPackage()));
+		const TSharedRef<SSlaterView> View = SlaterExamples::MakeHealthHud(TEXT("Base"), ViewModel.Get());
+		const TSharedPtr<SWidget> Warning = FindText(View, TEXT("Low health!"));
+		ASSERT_THAT(IsTrue(Warning.IsValid()));
+		ASSERT_THAT(IsFalse(IsShown(Warning)));
+
+		ViewModel->SetHealth(20);
+		ASSERT_THAT(IsTrue(IsShown(Warning)));
+
+		ViewModel->SetHealth(80);
+		ASSERT_THAT(IsFalse(IsShown(Warning)));
+	}
+
+	TEST_METHOD(HealthHud_TheCommandsTakeTheirArgument_AndTheTimerStepWalksTheHealthDown)
+	{
+		TStrongObjectPtr<USlaterHealthHudViewModel> ViewModel(NewObject<USlaterHealthHudViewModel>(GetTransientPackage()));
+		const TSharedRef<SSlaterView> View = SlaterExamples::MakeHealthHud(TEXT("Base"), ViewModel.Get());
+
+		FSlaterCommandCall Hurt;
+		Hurt.Name = TEXT("HealthHud.Hurt");
+		Hurt.Argument = TEXT("30");
+		ASSERT_THAT(IsTrue(View->RunCommand(Hurt)));
+		ASSERT_THAT(AreEqual(ViewModel->GetHealth(), 70));
+
+		FSlaterCommandCall Heal;
+		Heal.Name = TEXT("HealthHud.Heal");
+		Heal.Argument = TEXT("500");
+		ASSERT_THAT(IsTrue(View->RunCommand(Heal)));
+		ASSERT_THAT(AreEqual(ViewModel->GetHealth(), 100)); // clamped to the maximum
+
+		ViewModel->Advance();
+		ASSERT_THAT(AreEqual(ViewModel->GetHealth(), 97));
+		ViewModel->SetHealth(0);
+		ViewModel->Advance();
+		ASSERT_THAT(AreEqual(ViewModel->GetHealth(), 4)); // empty: the timer turns around and heals
 	}
 
 	TEST_METHOD(HelloWidget_IsRegistered_AsAWidgetExample)
