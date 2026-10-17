@@ -269,6 +269,41 @@ public:
 	}
 };
 
+/**
+ * The T-567 spike: a widget that is its own view model. Its members are FieldNotify like a `UMVVMViewModelBase`'s, and
+ * `MakeObjectScope(this)` is asked to read and follow them. `UWidget` already implements `INotifyFieldValueChanged`.
+ */
+UCLASS()
+class USlaterTestFieldWidget : public USlaterLayoutUserWidget
+{
+	GENERATED_BODY()
+
+public:
+	USlaterTestFieldWidget()
+	{
+		LayoutId = TEXT("FieldWidget");
+		StyleName = TEXT("Dusk");
+	}
+
+	UPROPERTY(FieldNotify, Getter, Setter)
+	int32 Count = 0;
+
+	/** Derived, no storage: notified by `SetCount`. */
+	UFUNCTION(BlueprintPure, FieldNotify)
+	FString GetGreeting() const { return Count == 0 ? TEXT("Press the button.") : TEXT("Pressed."); }
+
+	int32 GetCount() const { return Count; }
+	void SetCount(int32 NewCount)
+	{
+		if (Count != NewCount)
+		{
+			Count = NewCount;
+			BroadcastFieldValueChanged(ThisClass::FFieldNotificationClassDescriptor::Count);
+			BroadcastFieldValueChanged(ThisClass::FFieldNotificationClassDescriptor::GetGreeting);
+		}
+	}
+};
+
 /** A code-owned layout widget (T-559): layout, scope values and commands all come from the class, no `Configure`. */
 UCLASS()
 class USlaterTestCodeWidget : public USlaterLayoutUserWidget

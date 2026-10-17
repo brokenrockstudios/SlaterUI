@@ -452,6 +452,67 @@ TEST_CLASS(SlaterGameFeatureActionTests, "BRS.SlaterUI.GameFeatureAction")
 		ASSERT_THAT(IsFalse(Slater::StyleLibrary().Find(TEXT("UIPack")).IsValid()));
 	}
 
+	TEST_METHOD(AWidget_AsItsOwnViewModel_IsReadAndFollowedThroughMakeObjectScope)
+	{
+		// T-567 spike: does MakeObjectScope on a UUserWidget subclass read and follow its FieldNotify members?
+		TStrongObjectPtr<USlaterTestFieldWidget> Widget(Cast<USlaterTestFieldWidget>(UUserWidget::CreateWidgetInstance(Spawner.GetWorld(), USlaterTestFieldWidget::StaticClass(), NAME_None)));
+		ASSERT_THAT(IsTrue(Widget.IsValid()));
+		const TSharedRef<ISlaterScope> Scope = Slater::MakeObjectScope(Widget.Get());
+
+		FString Text;
+		const auto Read = [&](const TCHAR* Path)
+		{
+			Text.Reset();
+			return Scope->Read(Path, Text);
+		};
+		for (const TCHAR* Path : { TEXT("Count"), TEXT("Greeting") })
+		{
+			FString Why;
+			ASSERT_THAT(IsTrue(Scope->Check(Path, false, Why), *FString::Printf(TEXT("%s: %s"), Path, *Why)));
+		}
+		ASSERT_THAT(IsTrue(Read(TEXT("Count"))));
+		ASSERT_THAT(IsTrue(Text == TEXT("0"), *Text));
+		ASSERT_THAT(IsTrue(Read(TEXT("Greeting"))));
+		ASSERT_THAT(IsTrue(Text == TEXT("Press the button."), *Text));
+
+		int32 CountPushes = 0;
+		int32 GreetingPushes = 0;
+		TUniquePtr<ISlaterSubscription> OnCount = Scope->Subscribe(TEXT("Count"), [&CountPushes]() { ++CountPushes; });
+		TUniquePtr<ISlaterSubscription> OnGreeting = Scope->Subscribe(TEXT("Greeting"), [&GreetingPushes]() { ++GreetingPushes; });
+
+		Widget->SetCount(2);
+		ASSERT_THAT(AreEqual(CountPushes, 1));
+		ASSERT_THAT(AreEqual(GreetingPushes, 1));
+		ASSERT_THAT(IsTrue(Read(TEXT("Count"))));
+		ASSERT_THAT(IsTrue(Text == TEXT("2"), *Text));
+		ASSERT_THAT(IsTrue(Read(TEXT("Greeting"))));
+		ASSERT_THAT(IsTrue(Text == TEXT("Pressed."), *Text));
+
+		Widget->SetCount(2);
+		ASSERT_THAT(AreEqual(CountPushes, 1));
+
+		OnCount.Reset();
+		Widget->SetCount(3);
+		ASSERT_THAT(AreEqual(CountPushes, 1));
+		ASSERT_THAT(AreEqual(GreetingPushes, 2)); // the greeting subscription lives on, and the author notifies it by hand (its text is the same)
+	}
+
+	TEST_METHOD(AWidget_AsItsOwnViewModel_DrivesItsOwnLayout)
+	{
+		Fix.Write(TEXT("FieldWidget.sltr"), TEXT("<vbox><text>{Count}</text><text>{Greeting}</text><text>{Visibility}</text></vbox>"));
+		TStrongObjectPtr<USlaterTestFieldWidget> Widget(Cast<USlaterTestFieldWidget>(UUserWidget::CreateWidgetInstance(Spawner.GetWorld(), USlaterTestFieldWidget::StaticClass(), NAME_None)));
+		ASSERT_THAT(IsTrue(Widget.IsValid()));
+		const TSharedRef<SWidget> Slate = Widget->TakeWidget();
+		Widget->SetViewModel(Widget.Get());
+		ASSERT_THAT(IsFalse(Widget->GetView()->HasErrors()));
+		TArray<FString> Texts = SlaterBindKit::Texts(Slate);
+		ASSERT_THAT(IsTrue(Texts.Num() >= 2 && Texts[0] == TEXT("0") && Texts[1] == TEXT("Press the button."), *FString::Join(Texts, TEXT("|"))));
+
+		Widget->SetCount(1);
+		Texts = SlaterBindKit::Texts(Slate);
+		ASSERT_THAT(IsTrue(Texts[0] == TEXT("1") && Texts[1] == TEXT("Pressed."), *FString::Join(Texts, TEXT("|"))));
+	}
+
 	TEST_METHOD(TheUserWidgetHost_ShowsTheLayoutItIsConfiguredWith_AndOneConfiguredLater)
 	{
 		Fix.Write(TEXT("LwHost.sltr"), TEXT("<vbox><text>hosted</text></vbox>"));

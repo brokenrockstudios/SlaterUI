@@ -2,6 +2,10 @@
 
 Version format `YYMM.DDRR` (year, month, day, revision of that day). Newest first. Keep entries to one line where possible.
 
+## 2610.1704
+
+- Tests only (T-567): a widget as its own view model is read and followed through MakeObjectScope (AWidget_AsItsOwnViewModel_*); proposal [CodeOwnedWidget](../../../Docs/SlaterUI/Proposals/CodeOwnedWidget.md).
+
 ## 2610.1703
 
 - `segmented` `icons="A, B"` (one per option; a Slater image or an engine style brush like `Icons.cylinder`); the WidgetGallery SegmentedControl row shows the Starship icons. Tests `ASegmentedControl_Icons*`.
