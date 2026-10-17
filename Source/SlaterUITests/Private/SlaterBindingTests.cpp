@@ -544,4 +544,63 @@ TEST_CLASS(SlaterGetterScopeTests, "BRS.SlaterUI.Bind.Getters")
 	}
 };
 
+/** Several scopes read as one (T-850): every call on a path goes to the member that owns it. */
+TEST_CLASS(SlaterChainScopeTests, "BRS.SlaterUI.Bind.Chain")
+{
+	TEST_METHOD(EveryCallOnAPath_GoesToTheFirstMemberThatOwnsIt)
+	{
+		FString WrittenToFirst;
+		FString WrittenToSecond;
+		const TSharedRef<FSlaterGetterScope> First = MakeShared<FSlaterGetterScope>();
+		First->AddValue(TEXT("Both"), []() { return FString(TEXT("first")); });
+		First->AddSetter(TEXT("Both"), [&WrittenToFirst](const FString& V) { WrittenToFirst = V; return true; });
+		First->AddSetter(TEXT("OnlySecond"), [&WrittenToFirst](const FString& V) { WrittenToFirst = V; return true; });
+		const TSharedRef<FSlaterGetterScope> Second = MakeShared<FSlaterGetterScope>();
+		Second->AddValue(TEXT("Both"), []() { return FString(TEXT("second")); });
+		Second->AddSetter(TEXT("Both"), [&WrittenToSecond](const FString& V) { WrittenToSecond = V; return true; });
+		Second->AddValue(TEXT("OnlySecond"), []() { return FString(TEXT("two")); });
+		Second->AddList(TEXT("Things"), MakeShared<FBgCountList>());
+		const TSharedRef<ISlaterScope> Chain = MakeShared<FSlaterChainScope>(TArray<TSharedRef<ISlaterScope>>{First, Second});
+
+		FString Out;
+		ASSERT_THAT(IsTrue(Chain->Read(TEXT("Both"), Out) && Out == TEXT("first"), *Out));
+		ASSERT_THAT(IsTrue(Chain->Read(TEXT("OnlySecond"), Out) && Out == TEXT("two"), *Out));
+		ASSERT_THAT(IsFalse(Chain->Read(TEXT("Nope"), Out)));
+		ASSERT_THAT(IsTrue(Chain->FindList(TEXT("Things"), TEXT("Id")).IsValid()));
+		FString Why;
+		ASSERT_THAT(IsTrue(Chain->Check(TEXT("Things"), true, Why)));
+		ASSERT_THAT(IsFalse(Chain->Check(TEXT("Both"), true, Why)));
+
+		ASSERT_THAT(IsTrue(Chain->Write(TEXT("Both"), TEXT("1"))));
+		ASSERT_THAT(IsTrue(WrittenToFirst == TEXT("1") && WrittenToSecond.IsEmpty()));
+		// The second member owns OnlySecond and has no setter for it: the first one's setter is not used instead.
+		ASSERT_THAT(IsFalse(Chain->CheckWrite(TEXT("OnlySecond"), Why)));
+		ASSERT_THAT(IsFalse(Chain->Write(TEXT("OnlySecond"), TEXT("2"))));
+		ASSERT_THAT(IsTrue(WrittenToFirst == TEXT("1")));
+
+		int32 Fired = 0;
+		const TUniquePtr<ISlaterSubscription> Sub = Chain->Subscribe(TEXT("Both"), [&Fired]() { ++Fired; });
+		Second->Notify(TEXT("Both"));
+		ASSERT_THAT(AreEqual(Fired, 0));
+		First->Notify(TEXT("Both"));
+		ASSERT_THAT(AreEqual(Fired, 1));
+		ASSERT_THAT(IsTrue(Chain->Subscribe(TEXT("Nope"), []() {}).IsValid()));
+	}
+
+	TEST_METHOD(APathNoMemberOwns_FailsWithTheMemberThatCanSuggestAName)
+	{
+		const TSharedRef<FSlaterGetterScope> First = MakeShared<FSlaterGetterScope>();
+		First->AddValue(TEXT("Health"), []() { return FString(TEXT("1")); });
+		const TSharedRef<FSlaterGetterScope> Second = MakeShared<FSlaterGetterScope>();
+		Second->AddValue(TEXT("Zzz"), []() { return FString(TEXT("z")); });
+		FString Why;
+		ASSERT_THAT(IsFalse(FSlaterChainScope({First, Second}).Check(TEXT("Helth"), false, Why)));
+		ASSERT_THAT(IsTrue(Why.Contains(TEXT("did you mean 'Health'")), *Why));
+		ASSERT_THAT(IsFalse(FSlaterChainScope({Second, First}).Check(TEXT("Helth"), false, Why)));
+		ASSERT_THAT(IsTrue(Why.Contains(TEXT("did you mean 'Health'")), *Why));
+		ASSERT_THAT(IsFalse(FSlaterChainScope({}).Check(TEXT("Helth"), false, Why)));
+		ASSERT_THAT(IsFalse(Why.IsEmpty()));
+	}
+};
+
 #endif

@@ -126,7 +126,10 @@ TSharedRef<SWidget> USlaterLayoutUserWidget::RebuildWidget()
 	TSharedRef<FSlaterGetterScope> Scope = MakeShared<FSlaterGetterScope>();
 	BuildScope(*Scope);
 	GetterScope = Scope;
-	TSharedPtr<ISlaterScope> Context = Scope;
+	// The getters first (an explicit AddValue wins a clash), then the widget's own members (T-850).
+	const TSharedRef<ISlaterScope> Chain = MakeShared<FSlaterChainScope>(TArray<TSharedRef<ISlaterScope>>{Scope, Slater::MakeObjectScope(this)});
+	OwnContext = Chain;
+	TSharedPtr<ISlaterScope> Context = Chain;
 	if (UObject* Object = ViewModel.Get())
 	{
 		Context = Slater::MakeObjectScope(Object);
@@ -173,7 +176,7 @@ TSharedPtr<FSlaterGetterScope> USlaterLayoutUserWidget::LiveScope() const
 	const TSharedPtr<SSlaterView> Current = View.Pin();
 	const TSharedPtr<FSlaterGetterScope> Scope = GetterScope.Pin();
 	// A view model given later replaced the context: the getters are no longer what the view reads.
-	return Current.IsValid() && Scope.IsValid() && Current->GetContext() == Scope ? Scope : nullptr;
+	return Current.IsValid() && Scope.IsValid() && Current->GetContext() == OwnContext.Pin() ? Scope : nullptr;
 }
 
 void USlaterLayoutUserWidget::Notify(const FString& Path)

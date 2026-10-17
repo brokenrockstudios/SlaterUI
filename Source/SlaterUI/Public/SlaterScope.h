@@ -20,7 +20,8 @@ public:
 /**
  * The data a layout binds to: one record (the view's context, or one item of a list). A `{Path}` is read from it as
  * text, and a subscription tells the binding when the value at a path may have changed. Implementations: a mock JSON
- * model (`Slater::MakeModelScope`) and a UObject view model (`Slater::MakeObjectScope`, SlaterObjectScope.h). Game thread only.
+ * model (`Slater::MakeModelScope`), a UObject view model (`Slater::MakeObjectScope`, SlaterObjectScope.h), getters
+ * (`FSlaterGetterScope`) and several of these in order (`FSlaterChainScope`). Game thread only.
  */
 class SLATERUI_API ISlaterScope : public TSharedFromThis<ISlaterScope>
 {
@@ -121,6 +122,31 @@ private:
 	TMap<FString, TFunction<bool(const FString&)>> Setters;
 	TMap<FString, TSharedRef<ISlaterListSource>> Lists;
 	TSharedRef<FSlaterCallbackTable> Table;
+};
+
+/**
+ * Several scopes read as one, in order (T-850): a path belongs to the first member whose `Check` accepts it (as a value
+ * or as a list), and `Read`, `Subscribe`, `CheckWrite`, `Write` and `FindList` go to that same member, so a path never
+ * splits across two. A code-owned widget uses it as [the getters `BuildScope` filled, the widget's own members]. A path
+ * no member accepts fails with the reason of the first member that has a "did you mean", else of the last member.
+ */
+class SLATERUI_API FSlaterChainScope : public ISlaterScope
+{
+public:
+	explicit FSlaterChainScope(TArray<TSharedRef<ISlaterScope>> InMembers);
+
+	virtual bool Read(const FString& Path, FString& OutText) const override;
+	virtual bool Check(const FString& Path, bool bList, FString& OutWhy) const override;
+	virtual TSharedPtr<ISlaterListSource> FindList(const FString& Path, const FString& KeyField) override;
+	virtual TUniquePtr<ISlaterSubscription> Subscribe(const FString& Path, TFunction<void()> OnChange) override;
+	virtual bool CheckWrite(const FString& Path, FString& OutWhy) const override;
+	virtual bool Write(const FString& Path, const FString& Text) override;
+
+private:
+	/** The member that owns Path (as a list when bList), null when none accepts it. */
+	ISlaterScope* Owner(const FString& Path, bool bList, FString* OutWhy = nullptr) const;
+
+	TArray<TSharedRef<ISlaterScope>> Members;
 };
 
 namespace Slater

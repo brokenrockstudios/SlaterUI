@@ -513,6 +513,73 @@ TEST_CLASS(SlaterGameFeatureActionTests, "BRS.SlaterUI.GameFeatureAction")
 		ASSERT_THAT(IsTrue(Texts[0] == TEXT("1") && Texts[1] == TEXT("Pressed."), *FString::Join(Texts, TEXT("|"))));
 	}
 
+	TEST_METHOD(ACodeOwnedWidget_ReadsItsMembersAndItsGetters_WithNoSetViewModel)
+	{
+		Fix.Write(TEXT("ChainWidget.sltr"), TEXT("<vbox><text>{Count}</text><text>{Greeting}</text><text>{Label}</text></vbox>"));
+		TStrongObjectPtr<USlaterTestChainWidget> Widget(Cast<USlaterTestChainWidget>(UUserWidget::CreateWidgetInstance(Spawner.GetWorld(), USlaterTestChainWidget::StaticClass(), NAME_None)));
+		ASSERT_THAT(IsTrue(Widget.IsValid()));
+		const TSharedRef<SWidget> Slate = Widget->TakeWidget();
+		ASSERT_THAT(IsFalse(Widget->GetView()->HasErrors()));
+		const TArray<FString> Texts = SlaterBindKit::Texts(Slate);
+		ASSERT_THAT(IsTrue(Texts.Num() == 3 && Texts[0] == TEXT("0") && Texts[1] == TEXT("Press the button.") && Texts[2] == TEXT("FromGetter"), *FString::Join(Texts, TEXT("|"))));
+	}
+
+	TEST_METHOD(ACodeOwnedWidget_NameInBothItsGettersAndItsMembers_ReadsTheGetter)
+	{
+		Fix.Write(TEXT("ChainWidget.sltr"), TEXT("<vbox><text>{Title}</text></vbox>"));
+		TStrongObjectPtr<USlaterTestChainWidget> Widget(Cast<USlaterTestChainWidget>(UUserWidget::CreateWidgetInstance(Spawner.GetWorld(), USlaterTestChainWidget::StaticClass(), NAME_None)));
+		ASSERT_THAT(IsTrue(Widget.IsValid()));
+		const TSharedRef<SWidget> Slate = Widget->TakeWidget();
+		ASSERT_THAT(IsFalse(Widget->GetView()->HasErrors()));
+		ASSERT_THAT(IsTrue(SlaterBindKit::Texts(Slate)[0] == TEXT("TitleFromGetter"), *SlaterBindKit::Texts(Slate)[0]));
+	}
+
+	TEST_METHOD(ACodeOwnedWidget_BroadcastFieldValueChanged_UpdatesTheBoundText)
+	{
+		Fix.Write(TEXT("ChainWidget.sltr"), TEXT("<vbox><text>{Count}</text><text>{Greeting}</text></vbox>"));
+		TStrongObjectPtr<USlaterTestChainWidget> Widget(Cast<USlaterTestChainWidget>(UUserWidget::CreateWidgetInstance(Spawner.GetWorld(), USlaterTestChainWidget::StaticClass(), NAME_None)));
+		ASSERT_THAT(IsTrue(Widget.IsValid()));
+		const TSharedRef<SWidget> Slate = Widget->TakeWidget();
+		Widget->SetCount(2);
+		const TArray<FString> Texts = SlaterBindKit::Texts(Slate);
+		ASSERT_THAT(IsTrue(Texts[0] == TEXT("2") && Texts[1] == TEXT("Pressed."), *FString::Join(Texts, TEXT("|"))));
+	}
+
+	TEST_METHOD(ACodeOwnedWidget_SetViewModel_ReplacesItsGettersAndItsMembers)
+	{
+		Fix.Write(TEXT("ChainWidget.sltr"), TEXT("<vbox><text>{Title}</text></vbox>"));
+		USlaterTestRootVM* Root = Fix.Make<USlaterTestRootVM>();
+		Root->Title = TEXT("FromVm");
+		TStrongObjectPtr<USlaterTestChainWidget> Widget(Cast<USlaterTestChainWidget>(UUserWidget::CreateWidgetInstance(Spawner.GetWorld(), USlaterTestChainWidget::StaticClass(), NAME_None)));
+		ASSERT_THAT(IsTrue(Widget.IsValid()));
+		const TSharedRef<SWidget> Slate = Widget->TakeWidget();
+		ASSERT_THAT(IsTrue(SlaterBindKit::Texts(Slate)[0] == TEXT("TitleFromGetter")));
+		Widget->SetViewModel(Root);
+		ASSERT_THAT(IsFalse(Widget->GetView()->HasErrors()));
+		ASSERT_THAT(IsTrue(SlaterBindKit::Texts(Slate)[0] == TEXT("FromVm"), *SlaterBindKit::Texts(Slate)[0]));
+		Root->SetTitle(TEXT("Changed"));
+		ASSERT_THAT(IsTrue(SlaterBindKit::Texts(Slate)[0] == TEXT("Changed")));
+
+		// A path only the widget had fails against the view model alone.
+		Fix.Write(TEXT("ChainWidget.sltr"), TEXT("<vbox><text>{Count}</text></vbox>"));
+		ASSERT_THAT(IsFalse(Widget->GetView()->Reload()));
+	}
+
+	TEST_METHOD(ACodeOwnedWidget_UnknownPath_FailsTheBuildWithItsLineAndASuggestion)
+	{
+		Fix.Write(TEXT("ChainWidget.sltr"), TEXT("<vbox>\n<text>{Label}</text>\n<text>{Cuont}</text>\n</vbox>"));
+		TStrongObjectPtr<USlaterTestChainWidget> Widget(Cast<USlaterTestChainWidget>(UUserWidget::CreateWidgetInstance(Spawner.GetWorld(), USlaterTestChainWidget::StaticClass(), NAME_None)));
+		ASSERT_THAT(IsTrue(Widget.IsValid()));
+		const TSharedRef<SWidget> Slate = Widget->TakeWidget();
+		const TSharedPtr<SSlaterView> View = Widget->GetView();
+		ASSERT_THAT(IsTrue(View->HasErrors()));
+		const TArray<FSlaterError>& Errors = View->GetResult().Errors;
+		ASSERT_THAT(AreEqual(Errors.Num(), 1));
+		ASSERT_THAT(AreEqual(Errors[0].Line, 3));
+		ASSERT_THAT(IsTrue(Errors[0].Message.Contains(TEXT("{Cuont}")), *Errors[0].Message));
+		ASSERT_THAT(IsTrue(Errors[0].Message.Contains(TEXT("did you mean 'Count'")), *Errors[0].Message));
+	}
+
 	TEST_METHOD(TheUserWidgetHost_ShowsTheLayoutItIsConfiguredWith_AndOneConfiguredLater)
 	{
 		Fix.Write(TEXT("LwHost.sltr"), TEXT("<vbox><text>hosted</text></vbox>"));

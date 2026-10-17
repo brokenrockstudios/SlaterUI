@@ -304,6 +304,48 @@ public:
 	}
 };
 
+/** A code-owned widget read through the chain (T-850): FieldNotify members plus a getter, no `SetViewModel`. */
+UCLASS()
+class USlaterTestChainWidget : public USlaterLayoutUserWidget
+{
+	GENERATED_BODY()
+
+public:
+	USlaterTestChainWidget()
+	{
+		LayoutId = TEXT("ChainWidget");
+		StyleName = TEXT("Dusk");
+	}
+
+	UPROPERTY(FieldNotify, Getter, Setter)
+	int32 Count = 0;
+
+	/** Also registered by `BuildScope` under the same name: the getter wins. */
+	UPROPERTY(FieldNotify)
+	FString Title = TEXT("FromMember");
+
+	UFUNCTION(BlueprintPure, FieldNotify)
+	FString GetGreeting() const { return Count == 0 ? TEXT("Press the button.") : TEXT("Pressed."); }
+
+	int32 GetCount() const { return Count; }
+	void SetCount(int32 NewCount)
+	{
+		if (Count != NewCount)
+		{
+			Count = NewCount;
+			BroadcastFieldValueChanged(ThisClass::FFieldNotificationClassDescriptor::Count);
+			BroadcastFieldValueChanged(ThisClass::FFieldNotificationClassDescriptor::GetGreeting);
+		}
+	}
+
+protected:
+	virtual void BuildScope(FSlaterGetterScope& Scope) override
+	{
+		Scope.AddValue(TEXT("Label"), []() { return FString(TEXT("FromGetter")); });
+		Scope.AddValue(TEXT("Title"), []() { return FString(TEXT("TitleFromGetter")); });
+	}
+};
+
 /** A code-owned layout widget (T-559): layout, scope values and commands all come from the class, no `Configure`. */
 UCLASS()
 class USlaterTestCodeWidget : public USlaterLayoutUserWidget

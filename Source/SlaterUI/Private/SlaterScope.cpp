@@ -491,3 +491,65 @@ bool ISlaterScope::Write(const FString&, const FString&)
 {
 	return false;
 }
+
+FSlaterChainScope::FSlaterChainScope(TArray<TSharedRef<ISlaterScope>> InMembers) : Members(MoveTemp(InMembers))
+{
+}
+
+ISlaterScope* FSlaterChainScope::Owner(const FString& Path, bool bList, FString* OutWhy) const
+{
+	FString Reason;
+	for (const TSharedRef<ISlaterScope>& Member : Members)
+	{
+		FString Why;
+		if (Member->Check(Path, bList, Why))
+		{
+			return &Member.Get();
+		}
+		// The first member that can suggest a name explains best; otherwise the last one says why.
+		if (!Reason.Contains(TEXT("did you mean")))
+		{
+			Reason = MoveTemp(Why);
+		}
+	}
+	if (OutWhy)
+	{
+		*OutWhy = Members.IsEmpty() ? FString::Printf(TEXT("nothing can be read here, so '%s' cannot"), *Path) : MoveTemp(Reason);
+	}
+	return nullptr;
+}
+
+bool FSlaterChainScope::Read(const FString& Path, FString& OutText) const
+{
+	ISlaterScope* Member = Owner(Path, false);
+	return Member && Member->Read(Path, OutText);
+}
+
+bool FSlaterChainScope::Check(const FString& Path, bool bList, FString& OutWhy) const
+{
+	return Owner(Path, bList, &OutWhy) != nullptr;
+}
+
+TSharedPtr<ISlaterListSource> FSlaterChainScope::FindList(const FString& Path, const FString& KeyField)
+{
+	ISlaterScope* Member = Owner(Path, true);
+	return Member ? Member->FindList(Path, KeyField) : nullptr;
+}
+
+TUniquePtr<ISlaterSubscription> FSlaterChainScope::Subscribe(const FString& Path, TFunction<void()> OnChange)
+{
+	ISlaterScope* Member = Owner(Path, false);
+	return Member ? Member->Subscribe(Path, MoveTemp(OnChange)) : MakeUnique<ISlaterSubscription>();
+}
+
+bool FSlaterChainScope::CheckWrite(const FString& Path, FString& OutWhy) const
+{
+	ISlaterScope* Member = Owner(Path, false, &OutWhy);
+	return Member && Member->CheckWrite(Path, OutWhy);
+}
+
+bool FSlaterChainScope::Write(const FString& Path, const FString& Text)
+{
+	ISlaterScope* Member = Owner(Path, false);
+	return Member && Member->Write(Path, Text);
+}

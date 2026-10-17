@@ -9,6 +9,7 @@
 
 class FSlaterCommandTable;
 class FSlaterGetterScope;
+class ISlaterScope;
 class SSlaterView;
 class UObject;
 
@@ -82,8 +83,14 @@ private:
  * `Configure` says which layout. It has no widget tree.
  *
  * Subclass it to own a layout in code (T-559, the "text version of UMG": one class tied 1:1 to its `.sltr`): set `LayoutId`
- * and `StyleName` in the constructor, fill the scope in `BuildScope` and register the commands in `RegisterCommands`.
- * `CreateWidget` and `AddToViewport` then work like for any other widget, with no outside `Configure`.
+ * and `StyleName` in the constructor, and register the commands in `RegisterCommands`. `CreateWidget` and `AddToViewport`
+ * then work like for any other widget, with no outside `Configure`.
+ *
+ * Data (T-850): `{Path}` reads the getters `BuildScope` registered first, then the widget's own members the way
+ * `MakeObjectScope` reads a view model, so a `UPROPERTY(FieldNotify)` or a `FieldNotify` getter UFUNCTION on the subclass
+ * needs no `AddValue`; `BroadcastFieldValueChanged` on it updates the bound text. A getter wins over a member of the same
+ * name. The members probably include `UUserWidget`'s own properties (`Visibility`, `ToolTipText`; UNVERIFIED), so a subclass
+ * member should not reuse those names. `SetViewModel` replaces both.
  */
 UCLASS()
 class SLATERUIUMG_API USlaterLayoutUserWidget : public UUserWidget
@@ -103,8 +110,9 @@ protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 
 	/**
-	 * Called each time the view is built, before the layout is: add the values, lists and setters `{Path}` reads. The scope
-	 * is used as the view's context unless `SetViewModel` gave one (a view model wins). Empty by default.
+	 * Called each time the view is built, before the layout is: add the values, lists and setters `{Path}` reads that the
+	 * widget's own members cannot give (computed text, a list of plain structs). Read before the members; unused when
+	 * `SetViewModel` gave a view model (a view model wins). Empty by default.
 	 */
 	virtual void BuildScope(FSlaterGetterScope& Scope) {}
 
@@ -137,4 +145,6 @@ private:
 	TWeakPtr<SSlaterView> View;
 	TWeakObjectPtr<UObject> ViewModel;
 	TWeakPtr<FSlaterGetterScope> GetterScope;
+	/** The chain [getters, this widget] the view was built with: `Notify` only reaches the getters while it is the context. */
+	TWeakPtr<ISlaterScope> OwnContext;
 };
