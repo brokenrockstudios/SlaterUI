@@ -1326,7 +1326,7 @@ namespace Slater
 			Namespace = TEXT("Slater");
 			Key = Loc;
 		}
-		return FText::ChangeKey(FTextKey(Namespace), FTextKey(Key + Suffix), FText::FromString(Literal));
+		return FText::AsLocalizable_Advanced(FTextKey(Namespace), FTextKey(Key + Suffix), FString(Literal));
 	}
 
 	const TArray<FSlaterAttrDesc>& SlotAttributes()

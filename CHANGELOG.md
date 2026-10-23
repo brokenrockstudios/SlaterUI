@@ -2,6 +2,10 @@
 
 Version format `YYMM.DDRR` (year, month, day, revision of that day). Newest first. Keep entries to one line where possible.
 
+## 2610.1901
+
+- Fix staged (non-editor) builds (T-965): literal text with a `loc` key uses `FText::AsLocalizable_Advanced` instead of the editor-only `FText::ChangeKey`, so translations now resolve at runtime too.
+
 ## 2610.1705
 
 - `FSlaterChainScope` (T-850): several scopes read as one, each path owned by the first member that `Check`s it. `USlaterLayoutUserWidget` reads `{Path}` from its `BuildScope` getters, then its own FieldNotify members (no `AddValue`, no `SetViewModel(this)`); `SetViewModel` still replaces both. Tests `Bind.Chain.*`, `ACodeOwnedWidget_ReadsItsMembers*`, `..._NameInBoth*`, `..._BroadcastFieldValueChanged*`, `..._SetViewModel_Replaces*`, `..._UnknownPath*`.
