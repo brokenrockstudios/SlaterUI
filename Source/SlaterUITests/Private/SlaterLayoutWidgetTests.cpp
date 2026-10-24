@@ -15,7 +15,7 @@
 #include "SlaterView.h"
 #include "SlaterSlotHost.h"
 
-namespace
+namespace SlaterLayoutWidgetTestsPrivate
 {
 	TArray<FString> LayoutOptionsOf(USlaterLayoutWidget& Widget)
 	{
@@ -28,6 +28,7 @@ namespace
 		return Params.ReturnValue;
 	}
 }
+using namespace SlaterLayoutWidgetTestsPrivate;
 
 /** The designer path (T-352): `USlaterLayoutWidget` in the UMG palette and the `UUserWidget` the game feature action shows. */
 TEST_CLASS(SlaterLayoutWidgetTests, "BRS.SlaterUI.LayoutWidget")
@@ -125,7 +126,7 @@ TEST_CLASS(SlaterLayoutWidgetTests, "BRS.SlaterUI.LayoutWidget")
 
 };
 
-namespace
+namespace SlaterLayoutWidgetTestsPrivate
 {
 	/** A slot host that only records what the action asked of it. */
 	class FRecordingSlotHost : public ISlaterSlotHost
@@ -157,6 +158,7 @@ namespace
 		}
 	};
 }
+using namespace SlaterLayoutWidgetTestsPrivate;
 
 /** The game feature action (T-352): layouts go to the game's slot host when the feature activates and come out when it deactivates. */
 TEST_CLASS(SlaterGameFeatureActionTests, "BRS.SlaterUI.GameFeatureAction")

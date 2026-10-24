@@ -5,7 +5,7 @@
 #include "CQTest.h"
 #include "SlaterStyle.h"
 
-namespace
+namespace SlaterStyleTestsPrivate
 {
 	const TCHAR* const StPath = TEXT("Styles/Test.sltrstyle");
 
@@ -51,6 +51,7 @@ namespace
 		return A.Equals(B, 0.0001f);
 	}
 }
+using namespace SlaterStyleTestsPrivate;
 
 /** A style looks a token up by name, then by each parent, and never by a child. */
 TEST_CLASS(SlaterStyleFallbackTests, "BRS.SlaterUI.Style.Fallback")

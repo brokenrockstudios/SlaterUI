@@ -14,7 +14,7 @@
 #include "SlaterView.h"
 #include "Widgets/Layout/SBox.h"
 
-namespace
+namespace SlaterOutletCommandTestsPrivate
 {
 	TSharedPtr<SWidget> OcFindType(const TSharedRef<SWidget>& Root, const TCHAR* Type)
 	{
@@ -52,6 +52,7 @@ namespace
 
 	const TCHAR* const OcHostLayout = TEXT("<vbox>\n\t<text>Before</text>\n\t<outlet id=\"Content\" fill=\"1\"><text>Default</text></outlet>\n\t<text>After</text>\n</vbox>");
 }
+using namespace SlaterOutletCommandTestsPrivate;
 
 /** `<outlet>`: a named place C++ fills, kept through reloads. */
 TEST_CLASS(SlaterOutletTests, "BRS.SlaterUI.Outlet")

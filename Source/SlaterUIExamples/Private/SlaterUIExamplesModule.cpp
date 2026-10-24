@@ -13,7 +13,7 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogSlaterExamples, Log, All);
 
-namespace
+namespace SlaterUIExamplesModulePrivate
 {
 	const FName ExampleHello(TEXT("Hello"));
 	const FName ExampleHelloWidget(TEXT("HelloWidget"));
@@ -84,6 +84,7 @@ namespace
 			[View]);
 	}
 }
+using namespace SlaterUIExamplesModulePrivate;
 
 class FSlaterUIExamplesModule : public IModuleInterface
 {

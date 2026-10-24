@@ -5,7 +5,7 @@
 #include "SlaterCommands.h"
 #include "Widgets/Layout/SBox.h"
 
-namespace
+namespace SlaterStatePrivate
 {
 	const TCHAR* const StateTag = TEXT("state");
 	const TCHAR* const SetStateAttr = TEXT("set-state");
@@ -95,6 +95,7 @@ namespace
 		}
 	}
 }
+using namespace SlaterStatePrivate;
 
 bool Slater::IsValidStateName(const FString& Name)
 {
@@ -198,7 +199,7 @@ FString Slater::ParseSizeBy(const FString& Text, const TCHAR* AttributeName, FSt
 	return FString();
 }
 
-namespace
+namespace SlaterStatePrivate
 {
 	void WriteSize(const FSlaterStateSize& Size, const FOptionalSize& Value)
 	{
@@ -217,6 +218,7 @@ namespace
 		}
 	}
 }
+using namespace SlaterStatePrivate;
 
 void Slater::ApplyStateSize(const FSlaterStateSize& Size, const FString* StateValue, bool bAnimate)
 {

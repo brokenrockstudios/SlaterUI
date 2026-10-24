@@ -2,7 +2,7 @@
 
 #include "SlaterSlotHost.h"
 
-namespace
+namespace SlaterSlotHostPrivate
 {
 	TWeakPtr<ISlaterSlotHost>& HostSlot()
 	{
@@ -10,6 +10,7 @@ namespace
 		return Host;
 	}
 }
+using namespace SlaterSlotHostPrivate;
 
 void Slater::SetSlotHost(const TSharedPtr<ISlaterSlotHost>& Host)
 {

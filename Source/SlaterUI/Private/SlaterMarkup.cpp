@@ -15,7 +15,7 @@ FString FSlaterError::ToString() const
 	return FString::Printf(TEXT("%s(%d,%d): %s"), Path.IsEmpty() ? TEXT("<markup>") : *Path, Line, Column, *Message);
 }
 
-namespace
+namespace SlaterMarkupPrivate
 {
 	bool IsNameStart(TCHAR C)
 	{
@@ -573,6 +573,7 @@ namespace
 		bool bRootSeen = false;
 	};
 }
+using namespace SlaterMarkupPrivate;
 
 bool Slater::ParseMarkup(const FString& Text, const FString& Path, FSlaterNode& OutRoot, FSlaterError& OutError, const FSlaterLimits& Limits)
 {

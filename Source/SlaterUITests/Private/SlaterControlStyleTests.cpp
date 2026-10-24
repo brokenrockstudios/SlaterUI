@@ -8,7 +8,7 @@
 #include "SlaterStyle.h"
 #include "SlaterView.h"
 
-namespace
+namespace SlaterControlStyleTestsPrivate
 {
 	FLinearColor CsTint(const FSlateBrush& Brush)
 	{
@@ -39,6 +39,7 @@ namespace
 		return Widget.IsValid() ? Slater::FindControlLook(*Widget) : nullptr;
 	}
 }
+using namespace SlaterControlStyleTestsPrivate;
 
 /** The stock controls (T-514) draw from the style: a token reaches the slider, the checkbox and the text box, in both shipped styles. */
 TEST_CLASS(SlaterControlStyleTests, "BRS.SlaterUI.ControlStyle")
@@ -65,6 +66,9 @@ TEST_CLASS(SlaterControlStyleTests, "BRS.SlaterUI.ControlStyle")
 		ASSERT_THAT(IsTrue(CsTint(Check->CheckBox->CheckedImage) == Accent));
 		// The engine multiplies the box brush by the foreground color, so a dark text color there would blacken the box.
 		ASSERT_THAT(IsTrue(Check->CheckBox->ForegroundColor.GetSpecifiedColor() == FLinearColor::White));
+		// The tick over the checked box takes its color from the CheckMark token (T-538).
+		ASSERT_THAT(IsTrue(Check->CheckTick.IsValid()));
+		ASSERT_THAT(IsTrue(CsTint(*Check->CheckTick) == CsToken(Stack, TEXT("UI.Color.CheckMark"))));
 
 		const TSharedPtr<FSlaterControlLook> TextBox = CsLook(Stack, TEXT("<vbox><textbox/></vbox>"), TEXT("SEditableTextBox"));
 		ASSERT_THAT(IsTrue(TextBox.IsValid() && TextBox->TextBox.IsValid()));
@@ -108,6 +112,18 @@ TEST_CLASS(SlaterControlStyleTests, "BRS.SlaterUI.ControlStyle")
 		ASSERT_THAT(IsTrue(Slider.IsValid() && Slider->Slider.IsValid()));
 		ASSERT_THAT(IsTrue(Check.IsValid() && Check->CheckBox.IsValid()));
 		ASSERT_THAT(IsTrue(CsTint(Check->CheckBox->UncheckedImage) == FLinearColor::White));
+		ASSERT_THAT(IsTrue(Check->CheckTick.IsValid() && CsTint(*Check->CheckTick) == FLinearColor::White));
+	}
+
+	TEST_METHOD(TheTick_IsTheSizeOfTheBox_AndBaseDefinesItsToken)
+	{
+		FSlaterStyleStack Stack;
+		ASSERT_THAT(IsTrue(Slater::StyleLibrary().BuildStack(TEXT("Base"), Stack)));
+		FLinearColor Mark;
+		ASSERT_THAT(IsTrue(Stack.FindColor(TEXT("UI.Color.CheckMark"), Mark)));
+		const TSharedPtr<FSlaterControlLook> Check = CsLook(Stack, TEXT("<vbox><checkbox checked='true'/></vbox>"), TEXT("SCheckBox"));
+		ASSERT_THAT(IsTrue(Check.IsValid() && Check->CheckTick.IsValid()));
+		ASSERT_THAT(IsTrue(Check->CheckTick->GetImageSize() == Check->CheckBox->CheckedImage.GetImageSize()));
 	}
 };
 

@@ -7,7 +7,7 @@
 #include "Styling/SlateTypes.h"
 #include "Styling/StyleDefaults.h"
 
-namespace
+namespace SlaterButtonPrivate
 {
 	/** The engine button with nothing drawn: the face is the look. */
 	const FButtonStyle& BareButtonStyle()
@@ -23,6 +23,7 @@ namespace
 		return Style;
 	}
 }
+using namespace SlaterButtonPrivate;
 
 void SSlaterButton::Construct(const FArguments& InArgs)
 {

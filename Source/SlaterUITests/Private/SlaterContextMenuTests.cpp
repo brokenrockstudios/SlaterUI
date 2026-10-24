@@ -12,7 +12,7 @@
 #include "Styling/WidgetStyle.h"
 #include "Widgets/SWindow.h"
 
-namespace
+namespace SlaterContextMenuTestsPrivate
 {
 	FPointerEvent CmLeftMouse()
 	{
@@ -24,6 +24,7 @@ namespace
 		return A.Equals(B, ESearchCase::CaseSensitive);
 	}
 }
+using namespace SlaterContextMenuTestsPrivate;
 
 /**
  * The popup menu sample (T-415): `Layouts/ContextMenu.sltr`, a footer chevron, a scrim, rows that fire commands and a submenu opened

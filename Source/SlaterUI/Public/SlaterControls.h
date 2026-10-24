@@ -21,6 +21,8 @@ public:
 	TSharedPtr<FSliderStyle> Slider;
 	TSharedPtr<FCheckBoxStyle> CheckBox;
 	TSharedPtr<FEditableTextBoxStyle> TextBox;
+	/** The `checkbox` tick (T-538): `Icons/Check.svg` tinted by `UI.Color.CheckMark`, drawn over the checked box. Null when the icon file is missing. */
+	TSharedPtr<FSlateBrush> CheckTick;
 	/** True when the `textbox` was built over `SMultiLineEditableTextBox` (`multiline`) instead of `SEditableTextBox`. */
 	bool bMultiLine = false;
 };

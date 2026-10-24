@@ -7,7 +7,7 @@
 #include "SlaterView.h"
 #include "Widgets/Text/STextBlock.h"
 
-namespace
+namespace SlaterWidgetGalleryTestsPrivate
 {
 	/** The text of every visible STextBlock under Widget, in tree order; a collapsed widget hides its subtree. */
 	void WgCollectVisibleTexts(SWidget& Widget, TArray<FString>& Out)
@@ -23,6 +23,7 @@ namespace
 		Widget.GetChildren()->ForEachWidget([&](SWidget& Child) { WgCollectVisibleTexts(Child, Out); });
 	}
 }
+using namespace SlaterWidgetGalleryTestsPrivate;
 
 /** The widget gallery sample (a page of the stock controls, laid out like the engine's Starship Gallery): `Layouts/WidgetGallery.sltr`. */
 TEST_CLASS(SlaterWidgetGalleryTests, "BRS.SlaterUI.WidgetGallery")

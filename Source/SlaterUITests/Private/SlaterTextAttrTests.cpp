@@ -9,7 +9,7 @@
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
 
-namespace
+namespace SlaterTextAttrTestsPrivate
 {
 	FSlaterBuildResult TxBuild(const TCHAR* Layout)
 	{
@@ -35,6 +35,7 @@ namespace
 		return Result.Succeeded() ? StaticCastSharedPtr<SMultiLineEditableTextBox>(SlaterListKit::Find(Result.Root.ToSharedRef(), TEXT("SMultiLineEditableTextBox"))) : nullptr;
 	}
 }
+using namespace SlaterTextAttrTestsPrivate;
 
 /** The `text` and `textbox` attribute batch (T-533). */
 TEST_CLASS(SlaterTextAttrTests, "BRS.SlaterUI.TextAttrs")

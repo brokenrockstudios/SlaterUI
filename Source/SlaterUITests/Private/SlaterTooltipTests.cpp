@@ -12,7 +12,7 @@
 #include "Widgets/SWidget.h"
 #include "Widgets/Text/STextBlock.h"
 
-namespace
+namespace SlaterTooltipTestsPrivate
 {
 	const FSlaterStyle& TipStyle()
 	{
@@ -51,6 +51,7 @@ namespace
 		return Texts.Num() > 0 ? Texts[0] : FString();
 	}
 }
+using namespace SlaterTooltipTestsPrivate;
 
 /** The `tooltip` attribute (T-423): engine tooltips on any element, styled by the tokens. */
 TEST_CLASS(SlaterTooltipTests, "BRS.SlaterUI.Tooltip")

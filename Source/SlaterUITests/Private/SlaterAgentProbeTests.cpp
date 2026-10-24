@@ -32,7 +32,7 @@
  * `Saved/SlaterUI/AgentProbe/...`, runs `RunTests.ps1 -Filter BRS.SlaterUI.AgentProbe -WithRHI`, and reads `Result.txt`
  * (and looks at `Out.png`) next to its files. With nothing dropped there, the tests do nothing and pass.
  */
-namespace
+namespace SlaterAgentProbeTestsPrivate
 {
 	FString ProbeRoot()
 	{
@@ -238,6 +238,7 @@ namespace
 		return Default;
 	}
 }
+using namespace SlaterAgentProbeTestsPrivate;
 
 /**
  * Builds every `Saved/SlaterUI/AgentProbe/Sltr/<Run>/Layout.sltr` against the shipped styles plus any `*.sltrstyle` in

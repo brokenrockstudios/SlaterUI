@@ -13,7 +13,7 @@
 #include "Widgets/SWidget.h"
 #include "Widgets/Text/STextBlock.h"
 
-namespace
+namespace SlaterTemplateTestsPrivate
 {
 	const TCHAR* const TpPath = TEXT("Layouts/Test.sltr");
 
@@ -147,6 +147,7 @@ namespace
 		return Registry;
 	}
 }
+using namespace SlaterTemplateTestsPrivate;
 
 /** Templates (T-346): declared in the layout, used like elements, expanded before the layout is checked. */
 TEST_CLASS(SlaterTemplateTests, "BRS.SlaterUI.Templates")

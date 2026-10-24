@@ -17,7 +17,7 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogSlaterCombo, Log, All);
 
-namespace
+namespace SlaterComboPrivate
 {
 	const FName ComboOptionsAttr(TEXT("options"));
 
@@ -255,6 +255,7 @@ namespace
 		return Combo;
 	}
 }
+using namespace SlaterComboPrivate;
 
 void SSlaterCombo::Construct(const FArguments& InArgs)
 {

@@ -17,7 +17,7 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogSlaterPopupSpike, Log, All);
 
-namespace
+namespace SlaterPopupSpikePrivate
 {
 	TSharedPtr<SWidget> SpikeRoot;
 
@@ -194,3 +194,4 @@ namespace
 		TEXT("Slater.PopupSpike [0 | bl|br|tl|tr] [below] [fit] [manual]: T-416 spike. Shows an SMenuAnchor menu with a submenu in the game viewport (0 removes it)."),
 		FConsoleCommandWithArgsDelegate::CreateStatic(&OnSpikeCommand));
 }
+using namespace SlaterPopupSpikePrivate;

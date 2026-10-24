@@ -9,7 +9,13 @@
 
 #include "Styling/CoreStyle.h"
 #include "Styling/SlateTypes.h"
+#include "Brushes/SlateImageBrush.h"
+#include "Interfaces/IPluginManager.h"
+#include "Misc/Paths.h"
+#include "Widgets/Images/SImage.h"
 #include "Widgets/Input/SCheckBox.h"
+#include "Widgets/SCanvas.h"
+#include "Widgets/SOverlay.h"
 #include "Widgets/Input/SEditableTextBox.h"
 #include "Widgets/Input/SMultiLineEditableTextBox.h"
 #include "Widgets/Input/SSegmentedControl.h"
@@ -27,7 +33,7 @@
  * `FEditableTextBoxStyle`) copied from the core style and filled with rounded-box brushes made from surface and color
  * tokens, so a style file themes them like any other element. A token a style lacks falls back to a fixed look.
  */
-namespace
+namespace SlaterControlElementsPrivate
 {
 	const FName ControlOnCommit(TEXT("on-commit"));
 
@@ -332,9 +338,22 @@ namespace
 		return Target;
 	}
 
+	/** The tick brush: the plugin's `Icons/Check.svg` (white strokes) tinted by `UI.Color.CheckMark`. Null when the file is not there. */
+	TSharedPtr<FSlateBrush> MakeCheckTick(const FSlaterBuildContext& Context, const FVector2f& Size)
+	{
+		const TSharedPtr<IPlugin> Plugin = IPluginManager::Get().FindPlugin(TEXT("SlaterUI"));
+		const FString Path = Plugin.IsValid() ? FPaths::ConvertRelativePathToFull(Plugin->GetContentDir() / TEXT("UI/Icons/Check.svg")) : FString();
+		if (Path.IsEmpty() || !FPaths::FileExists(Path))
+		{
+			return nullptr;
+		}
+		const FLinearColor Color = ControlColor(Context, TEXT("UI.Color.CheckMark"), FLinearColor::White);
+		return MakeShared<FSlateVectorImageBrush>(Path, Size, Color);
+	}
+
 	TSharedPtr<SWidget> BuildCheckBox(FSlaterBuildContext& Context)
 	{
-		// The box is an outlined Control surface that fills with Accent when ticked (no tick glyph: the fill is the mark).
+		// The box is an outlined Control surface that fills with Accent when ticked; a tick (Icons/Check.svg, tinted by UI.Color.CheckMark) is drawn over it.
 		const TSharedRef<FCheckBoxStyle> BoxStyle = MakeShared<FCheckBoxStyle>(FCoreStyle::Get().GetWidgetStyle<FCheckBoxStyle>("Checkbox"));
 		const FSlaterSurface Box = ControlSurface(Context, TEXT("UI.Surface.CheckBox"), MakeControlSurface(FLinearColor::White, FLinearColor(0.55f, 0.58f, 0.63f), 1.f, 4.f));
 		const FSlaterSurface BoxHover = ControlSurface(Context, TEXT("UI.Surface.CheckBox.Hover"), Box);
@@ -361,20 +380,57 @@ namespace
 		BoxStyle->SetUndeterminedForegroundColor(Untinted);
 		const TSharedRef<FSlaterEventSink> Sink = MakeShared<FSlaterEventSink>();
 		const FSlaterBuiltChild* Child = Context.Children.Num() > 0 ? &Context.Children[0] : nullptr;
+		const float LabelGap = Child ? Child->Slot.Margin : 0.f;
+		const TSharedPtr<FSlateBrush> Tick = MakeCheckTick(Context, BoxSize);
+		// The engine draws one brush per state, so the tick is a second layer: an image in the content slot, which sits
+		// right of the box, moved back over it. It lives in a canvas (no desired size), so the box and label keep their layout.
+		const TSharedRef<TWeakPtr<SCheckBox>> Self = MakeShared<TWeakPtr<SCheckBox>>();
+		TSharedRef<SWidget> Content = Child ? Child->Widget : SNullWidget::NullWidget;
+		if (Tick.IsValid())
+		{
+			const TSharedRef<SCanvas> TickCanvas = SNew(SCanvas)
+				.Visibility(EVisibility::HitTestInvisible)
+				+ SCanvas::Slot()
+				.Position(FVector2D(-(BoxSize.X + LabelGap), -BoxSize.Y * 0.5f))
+				.Size(FVector2D(BoxSize.X, BoxSize.Y))
+				[
+					SNew(SImage)
+					.Image(&*Tick)
+					.Visibility_Lambda([Self]()
+					{
+						const TSharedPtr<SCheckBox> Box = Self->Pin();
+						return Box.IsValid() && Box->IsChecked() ? EVisibility::HitTestInvisible : EVisibility::Collapsed;
+					})
+				];
+			// Without a label the canvas is the whole content (it has no size), which saves two widgets against the budget.
+			Content = !Child ? StaticCastSharedRef<SWidget>(TickCanvas) : StaticCastSharedRef<SWidget>(SNew(SOverlay)
+				+ SOverlay::Slot()
+				[
+					Content
+				]
+				+ SOverlay::Slot()
+				.HAlign(HAlign_Left)
+				.VAlign(VAlign_Center)
+				[
+					TickCanvas
+				]);
+		}
 		const TSharedRef<SCheckBox> CheckBox = SNew(SCheckBox)
 			.Style(&*BoxStyle)
 			.IsChecked(Context.GetBool(TEXT("checked")) ? ECheckBoxState::Checked : ECheckBoxState::Unchecked)
-			.Padding(FMargin(Child ? Child->Slot.Margin : 0.f, 0.f, 0.f, 0.f))
+			.Padding(FMargin(LabelGap, 0.f, 0.f, 0.f))
 			.OnCheckStateChanged_Lambda([Sink](ECheckBoxState State)
 			{
 				Sink->Fire(Slater::Attr::OnChange, State == ECheckBoxState::Checked ? TEXT("true") : TEXT("false"));
 			})
 			[
-				Child ? Child->Widget : SNullWidget::NullWidget
+				Content
 			];
+		*Self = CheckBox;
 		Slater::AttachEventSink(*CheckBox, Sink);
 		const TSharedRef<FSlaterControlLook> Look = MakeShared<FSlaterControlLook>();
 		Look->CheckBox = BoxStyle;
+		Look->CheckTick = Tick;
 		KeepControlLook(*CheckBox, Look);
 		return CheckBox;
 	}
@@ -611,6 +667,7 @@ namespace
 		return Result;
 	}
 }
+using namespace SlaterControlElementsPrivate;
 
 void Slater::RegisterControlElements(FSlaterElementRegistry& Registry)
 {

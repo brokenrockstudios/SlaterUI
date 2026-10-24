@@ -11,7 +11,7 @@
 
 #include "Framework/Application/SlateApplication.h"
 
-namespace
+namespace SlaterButtonTestsPrivate
 {
 	const TCHAR* const BtLayout = TEXT(
 		"<vbox>\n"
@@ -45,6 +45,7 @@ namespace
 		return Down;
 	}
 }
+using namespace SlaterButtonTestsPrivate;
 
 /** The `button` element (T-524): keyboard and gamepad route over `SButton`, with the surface roles of `surface`. */
 TEST_CLASS(SlaterButtonTests, "BRS.SlaterUI.Button")

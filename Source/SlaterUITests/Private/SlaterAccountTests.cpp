@@ -10,7 +10,7 @@
 #include "SlaterView.h"
 #include "Widgets/Images/SImage.h"
 
-namespace
+namespace SlaterAccountTestsPrivate
 {
 	/** SImage keeps its brush and tint in protected attributes; read them through a derived view (adds no data, nothing is constructed). */
 	struct FAccountPeekImage : SImage
@@ -25,6 +25,7 @@ namespace
 		}
 	};
 }
+using namespace SlaterAccountTestsPrivate;
 
 /** The account dashboard sample (T-408): `Layouts/Account.sltr` in the `Skyline` style, with `Account.mock.json` bound. */
 TEST_CLASS(SlaterAccountTests, "BRS.SlaterUI.Account")

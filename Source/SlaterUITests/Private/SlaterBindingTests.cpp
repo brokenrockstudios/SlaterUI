@@ -380,7 +380,7 @@ TEST_CLASS(SlaterViewModelListTests, "BRS.SlaterUI.Bind.List")
 	}
 };
 
-namespace
+namespace SlaterBindingTestsPrivate
 {
 	/** A list source that is neither JSON nor a view model: the third implementation of the interface. */
 	class FBgCountList : public ISlaterListSource
@@ -429,6 +429,7 @@ namespace
 		TArray<FItem> Items;
 	};
 }
+using namespace SlaterBindingTestsPrivate;
 
 /** Registered getters and a hand-written list source: the scope interface without a view-model class. */
 TEST_CLASS(SlaterGetterScopeTests, "BRS.SlaterUI.Bind.Getters")

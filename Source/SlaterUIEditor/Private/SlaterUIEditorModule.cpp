@@ -12,11 +12,12 @@
 
 #define LOCTEXT_NAMESPACE "SlaterUIEditor"
 
-namespace
+namespace SlaterUIEditorModulePrivate
 {
 	const FName PreviewTabName(TEXT("SlaterLayoutPreview"));
 	TWeakPtr<SSlaterPreview> ActivePreview;
 }
+using namespace SlaterUIEditorModulePrivate;
 
 class FSlaterUIEditorModule : public IModuleInterface
 {

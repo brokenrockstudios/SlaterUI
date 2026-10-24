@@ -26,6 +26,7 @@
 	<!-- Stock controls (T-514): the field behind a checkbox or text box and its outline. -->
 	<color name="UI.Color.Control" value="#FFFFFF"/>
 	<color name="UI.Color.ControlLine" value="#8C93A0"/>
+	<color name="UI.Color.CheckMark" value="#FFFFFF"/>
 
 	<metric name="UI.Space.S" value="4"/>
 	<metric name="UI.Space.M" value="8"/>

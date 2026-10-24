@@ -16,7 +16,7 @@
 #include "SlaterTestViewModels.h"
 #include "SlaterView.h"
 
-namespace
+namespace SlaterComboTestsPrivate
 {
 	/** Builds a layout against Base; the combo, when it built. */
 	TSharedPtr<SSlaterCombo> CbBuild(const TCHAR* Layout, FSlaterBuildResult& Result)
@@ -41,6 +41,7 @@ namespace
 
 	const TCHAR* const CbQuality = TEXT("<vbox><combo id=\"Q\" selected=\"{Nickname}\" on-change=\"{Nickname}\" hint=\"Pick one\"><option value=\"low\">Low</option><option value=\"high\">High</option><option value=\"ultra\">Ultra</option></combo><text>{Nickname}</text></vbox>");
 }
+using namespace SlaterComboTestsPrivate;
 
 /** The `combo` element (T-525): build, options, bound selection, write-back, empty list, refused misuse. */
 TEST_CLASS(SlaterComboTests, "BRS.SlaterUI.Combo")

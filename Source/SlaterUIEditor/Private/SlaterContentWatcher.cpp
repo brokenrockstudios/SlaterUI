@@ -9,7 +9,7 @@
 #include "Modules/ModuleManager.h"
 #include "SlaterView.h"
 
-namespace
+namespace SlaterContentWatcherPrivate
 {
 	/** Quiet time after the last event before the change is passed on. */
 	constexpr float FlushDelaySeconds = 0.25f;
@@ -24,6 +24,7 @@ namespace
 		}
 	}
 }
+using namespace SlaterContentWatcherPrivate;
 
 void FSlaterContentWatcher::Start()
 {

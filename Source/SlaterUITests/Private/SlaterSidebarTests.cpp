@@ -9,7 +9,7 @@
 #include "Widgets/Images/SImage.h"
 #include "Widgets/Text/STextBlock.h"
 
-namespace
+namespace SlaterSidebarTestsPrivate
 {
 	/** Every visible widget of one type under Widget, in tree order; a collapsed widget hides its subtree. */
 	void SbCollect(SWidget& Widget, const FName Type, TArray<SWidget*>& Out)
@@ -25,6 +25,7 @@ namespace
 		Widget.GetChildren()->ForEachWidget([&](SWidget& Child) { SbCollect(Child, Type, Out); });
 	}
 }
+using namespace SlaterSidebarTestsPrivate;
 
 /** The collapsible sidebar sample (T-403): `Layouts/Sidebar.sltr` with its SVG icons from `Content/UI/Icons`. */
 TEST_CLASS(SlaterSidebarTests, "BRS.SlaterUI.Sidebar")

@@ -9,7 +9,7 @@
 #include "HAL/FileManager.h"
 #include "Misc/FileHelper.h"
 
-namespace
+namespace SlaterTemplatesPrivate
 {
 	const TCHAR* const TagTemplate = TEXT("template");
 	const TCHAR* const TagImport = TEXT("import");
@@ -555,6 +555,7 @@ namespace
 		}
 	};
 }
+using namespace SlaterTemplatesPrivate;
 
 namespace Slater
 {

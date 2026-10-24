@@ -4,7 +4,7 @@
 
 #include "HAL/IConsoleManager.h"
 
-namespace
+namespace SlaterMotionPrivate
 {
 	TAutoConsoleVariable<float> CVarMotionScale(
 		TEXT("Slater.MotionScale"),
@@ -12,6 +12,7 @@ namespace
 		TEXT("Multiplies the duration of every SlaterUI transition. 0 makes them all instant."),
 		ECVF_Default);
 }
+using namespace SlaterMotionPrivate;
 
 bool Slater::EaseFromWord(FName Word, ECurveEaseFunction& OutEase)
 {

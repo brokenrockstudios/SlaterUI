@@ -7,7 +7,7 @@
 #include "SlaterElements.h"
 #include "Widgets/SWidget.h"
 
-namespace
+namespace SlaterPanelElementTestsPrivate
 {
 	const TCHAR* const PanelPath = TEXT("Layouts/Panel.sltr");
 
@@ -56,6 +56,7 @@ namespace
 		return FString::Printf(TEXT("no error at %d,%d containing '%s'; got: %s"), Line, Column, Fragment, *All);
 	}
 }
+using namespace SlaterPanelElementTestsPrivate;
 
 /** `canvas`, `grid` and `safe-zone` (T-529): the elements, their slot attributes, and where those put a child. */
 TEST_CLASS(SlaterPanelElementTests, "BRS.SlaterUI.Panels")

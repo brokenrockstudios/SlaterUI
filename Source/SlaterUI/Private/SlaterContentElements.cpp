@@ -15,7 +15,7 @@
 #include "Widgets/SNullWidget.h"
 #include "Widgets/Text/STextBlock.h"
 
-namespace
+namespace SlaterContentElementsPrivate
 {
 	/** State words and the suffix each adds to a surface role; `normal` uses the role itself. */
 	const TCHAR* StateSuffix(FName State)
@@ -492,6 +492,7 @@ namespace
 		return Desc;
 	}
 }
+using namespace SlaterContentElementsPrivate;
 
 void Slater::RegisterContentElements(FSlaterElementRegistry& Registry)
 {

@@ -17,7 +17,7 @@ bool Slater::RunCommand(const FSlaterCommandTable& Table, const FSlaterCommandCa
 	return false;
 }
 
-namespace
+namespace SlaterCommandsPrivate
 {
 	enum class EStockArg : uint8
 	{
@@ -77,6 +77,7 @@ namespace
 		return Name.ToString().StartsWith(TEXT("ui."), ESearchCase::CaseSensitive);
 	}
 }
+using namespace SlaterCommandsPrivate;
 
 void Slater::SplitCommandText(const FString& Text, FString& OutName, FString& OutArgument)
 {

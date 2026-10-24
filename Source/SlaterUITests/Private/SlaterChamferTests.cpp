@@ -20,7 +20,7 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/SOverlay.h"
 
-namespace
+namespace SlaterChamferTestsPrivate
 {
 	FSlaterBuildResult ChBuild(const TCHAR* Layout)
 	{
@@ -92,6 +92,7 @@ namespace
 		FFileHelper::SaveArrayToFile(Png, *(Dir / Name));
 	}
 }
+using namespace SlaterChamferTestsPrivate;
 
 /** `shape="chamfer"` on `surface`: the outline path, the attributes, and the refusals. No world, no RHI. */
 TEST_CLASS(SlaterChamferTests, "BRS.SlaterUI.Chamfer")

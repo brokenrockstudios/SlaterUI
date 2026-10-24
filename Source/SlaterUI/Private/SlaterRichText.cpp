@@ -30,7 +30,7 @@ struct FSlaterRichSnapshot
 	int32 LayoutModelLength = 0;
 };
 
-namespace
+namespace SlaterRichTextPrivate
 {
 	/** One run of rich text as written. Offsets are into the text. */
 	struct FRichTag
@@ -507,6 +507,7 @@ namespace
 		return Desc;
 	}
 }
+using namespace SlaterRichTextPrivate;
 
 namespace Slater
 {

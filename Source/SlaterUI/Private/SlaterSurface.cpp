@@ -143,7 +143,7 @@ void SSlaterSurface::SetChamfer(const FSlaterChamfer& InCuts)
 	}
 }
 
-namespace
+namespace SlaterSurfacePrivate
 {
 	/** Fills a convex path with a color: custom vertices need a texture to sample, so the core style's white box, sampled at the middle of its area. */
 	void PaintPolygon(FSlateWindowElementList& OutDrawElements, int32 LayerId, const FGeometry& Geometry, const TArray<FVector2f>& Path, const FLinearColor& Color, ESlateDrawEffect Effects)
@@ -178,6 +178,7 @@ namespace
 		FSlateDrawElement::MakeCustomVerts(OutDrawElements, LayerId, Handle, Vertices, Indices, nullptr, 0, 0, Effects);
 	}
 }
+using namespace SlaterSurfacePrivate;
 
 void SSlaterSurface::SetShadow(float InOffset, const FLinearColor& InColor)
 {

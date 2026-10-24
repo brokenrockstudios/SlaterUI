@@ -9,7 +9,7 @@
 #include "SlaterListTestKit.h"
 #include "Widgets/Input/SEditableTextBox.h"
 
-namespace
+namespace SlaterLocTestsPrivate
 {
 	FSlaterBuildResult LocBuild(const TCHAR* Layout, TArray<FSlaterError>* OutErrors = nullptr)
 	{
@@ -44,6 +44,7 @@ namespace
 		return Texts.Num() > 0 ? Texts[0] : FString();
 	}
 }
+using namespace SlaterLocTestsPrivate;
 
 /** Localization of literal text (T-535): the `loc` attribute gives a layout string an `FText` namespace and key. */
 TEST_CLASS(SlaterLocTests, "BRS.SlaterUI.Loc")

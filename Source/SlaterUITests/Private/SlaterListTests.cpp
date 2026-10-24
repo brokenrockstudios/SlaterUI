@@ -9,7 +9,7 @@
 #include "SlaterSurface.h"
 #include "Widgets/Text/STextBlock.h"
 
-namespace
+namespace SlaterListTestsPrivate
 {
 	const TCHAR* const LsRepeatLayout = TEXT("<vbox><repeat source='{L}' key='Id' columns='1'><text>{N}</text></repeat></vbox>");
 	const TCHAR* const LsListJson = TEXT("{\"L\":[{\"Id\":\"a\",\"N\":1},{\"Id\":\"b\",\"N\":2},{\"Id\":\"c\",\"N\":3}]}");
@@ -47,6 +47,7 @@ namespace
 		return Item;
 	}
 }
+using namespace SlaterListTestsPrivate;
 
 /** The mock data model: JSON in, scalars and keyed items out, a broadcast per change. */
 TEST_CLASS(SlaterModelTests, "BRS.SlaterUI.List.Model")

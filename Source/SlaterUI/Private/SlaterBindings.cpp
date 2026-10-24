@@ -7,7 +7,7 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogSlaterBindings, Log, All);
 
-namespace
+namespace SlaterBindingsPrivate
 {
 	/** Head of the list of sets that exist now, for the stale-binding report. Game thread only. */
 	FSlaterBindingSet* GLiveHead = nullptr;
@@ -29,6 +29,7 @@ namespace
 			}
 		}));
 }
+using namespace SlaterBindingsPrivate;
 
 namespace Slater
 {

@@ -8,7 +8,7 @@
 #include "SlaterView.h"
 #include "UObject/StrongObjectPtr.h"
 
-namespace
+namespace HealthHudExamplePrivate
 {
 	/** Keeps the view model alive for as long as the view's commands exist, and the demo timer with it. */
 	struct FHealthHudKeepAlive
@@ -22,6 +22,7 @@ namespace
 		}
 	};
 }
+using namespace HealthHudExamplePrivate;
 
 /**
  * HealthHud, binding a UObject. The layout (`Examples/HealthHud.sltr`) reads fields of `USlaterHealthHudViewModel`

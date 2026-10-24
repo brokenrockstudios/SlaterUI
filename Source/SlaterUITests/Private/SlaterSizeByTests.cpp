@@ -8,7 +8,7 @@
 #include "SlaterSurface.h"
 #include "SlaterView.h"
 
-namespace
+namespace SlaterSizeByTestsPrivate
 {
 	FSlaterBuildResult SbBuild(const FString& Text, const FSlaterStyleStack& Stack)
 	{
@@ -17,6 +17,7 @@ namespace
 		return Result;
 	}
 }
+using namespace SlaterSizeByTestsPrivate;
 
 /** `width-by` / `height-by` and `clip` (T-405): sizes that follow a view state. */
 TEST_CLASS(SlaterSizeByTests, "BRS.SlaterUI.SizeBy")

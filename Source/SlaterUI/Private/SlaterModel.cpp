@@ -8,7 +8,7 @@
 #include "Serialization/JsonReader.h"
 #include "Serialization/JsonSerializer.h"
 
-namespace
+namespace SlaterModelPrivate
 {
 	bool ScalarToString(const FJsonValue& Value, FString& OutText)
 	{
@@ -52,6 +52,7 @@ namespace
 		return Object;
 	}
 }
+using namespace SlaterModelPrivate;
 
 FSlaterModel::FSlaterModel()
 	: Root(MakeShared<FJsonObject>())

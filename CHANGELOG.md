@@ -2,6 +2,10 @@
 
 Version format `YYMM.DDRR` (year, month, day, revision of that day). Newest first. Keep entries to one line where possible.
 
+## 2610.2301
+
+- `checkbox` draws a tick over the checked box (T-538): `Icons/Check.svg` tinted by the new `UI.Color.CheckMark` token (white in `Base`), layered through the content slot so layout is unchanged. `FSlaterControlLook::CheckTick` exposes the brush; test `ControlStyle.*` checks it takes the token, `Render.Settings` shows the checked box in `Settings_<Style>.png`.
+
 ## 2610.1901
 
 - Fix staged (non-editor) builds (T-965): literal text with a `loc` key uses `FText::AsLocalizable_Advanced` instead of the editor-only `FText::ChangeKey`, so translations now resolve at runtime too.

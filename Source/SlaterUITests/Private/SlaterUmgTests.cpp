@@ -10,7 +10,7 @@
 #include "SlaterUmgTestTypes.h"
 #include "Widgets/SWidget.h"
 
-namespace
+namespace SlaterUmgTestsPrivate
 {
 	const TCHAR* const UmPath = TEXT("Layouts/Test.sltr");
 	const TCHAR* const TestWidgetClass = TEXT("/Script/SlaterUITests.SlaterTestUserWidget");
@@ -41,6 +41,7 @@ namespace
 		return FString::Printf(TEXT("<vbox><umg class=\"%s\" height=\"20\"/></vbox>"), Class);
 	}
 }
+using namespace SlaterUmgTestsPrivate;
 
 /** The `<umg class>` host (T-346): a UserWidget made and owned by a SlaterUI subsystem, shown inside a layout. */
 TEST_CLASS(SlaterUmgTests, "BRS.SlaterUI.Umg")

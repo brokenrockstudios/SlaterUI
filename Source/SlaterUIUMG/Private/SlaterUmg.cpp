@@ -80,7 +80,7 @@ UUserWidget* USlaterUmgSubsystem::CreateHosted(TSubclassOf<UUserWidget> Class, T
 	return Widget;
 }
 
-namespace
+namespace SlaterUmgPrivate
 {
 	TSharedPtr<SWidget> BuildUmg(FSlaterBuildContext& Context)
 	{
@@ -113,6 +113,7 @@ namespace
 		return Slate;
 	}
 }
+using namespace SlaterUmgPrivate;
 
 namespace Slater
 {

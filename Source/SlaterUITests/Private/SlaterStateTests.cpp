@@ -9,7 +9,7 @@
 #include "SlaterSurface.h"
 #include "SlaterView.h"
 
-namespace
+namespace SlaterStateTestsPrivate
 {
 	FPointerEvent StLeftMouse()
 	{
@@ -49,6 +49,7 @@ namespace
 		virtual void CloseScreen(SSlaterView&) override { Log.Add(TEXT("close")); }
 	};
 }
+using namespace SlaterStateTestsPrivate;
 
 /** `<state>`, `set-state` and `visible-when` (T-353): tabs and toggles from markup alone. */
 TEST_CLASS(SlaterStateTests, "BRS.SlaterUI.State")

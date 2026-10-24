@@ -7,7 +7,7 @@
 #include "Misc/Paths.h"
 #include "Brushes/SlateImageBrush.h"
 
-namespace
+namespace SlaterImagesPrivate
 {
 	class FSlaterFileImages : public ISlaterImageSource
 	{
@@ -28,6 +28,7 @@ namespace
 		TMap<FName, FSlateVectorImageBrush> Brushes;
 	};
 }
+using namespace SlaterImagesPrivate;
 
 TSharedRef<const ISlaterImageSource> Slater::MakeFileImageSource(const FString& Directory, float ImageSize)
 {

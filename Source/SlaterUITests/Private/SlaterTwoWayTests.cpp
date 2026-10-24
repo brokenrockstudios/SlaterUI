@@ -21,7 +21,7 @@
 #include "Widgets/Input/SSlider.h"
 #include "Widgets/Layout/SSpacer.h"
 
-namespace
+namespace SlaterTwoWayTestsPrivate
 {
 	/** A slider press goes through the engine's own path: pointer position, `PositionToValue`, `CommitValue`, `OnValueChanged`. The track is 200 px wide, so 0 is min, 200 is max and 100 the middle whatever the thumb's size. */
 	void TwPressSlider(const TSharedPtr<SWidget>& Slider, float X)
@@ -76,6 +76,7 @@ namespace
 		Registry.Register(MoveTemp(Echo));
 	}
 }
+using namespace SlaterTwoWayTestsPrivate;
 
 /** Element events that write back to a UObject view model the engine's MVVM way (T-381). */
 TEST_CLASS(SlaterTwoWayViewModelTests, "BRS.SlaterUI.TwoWay.ViewModel")

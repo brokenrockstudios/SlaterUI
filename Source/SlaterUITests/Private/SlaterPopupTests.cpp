@@ -11,7 +11,7 @@
 #include "SlaterSurface.h"
 #include "SlaterView.h"
 
-namespace
+namespace SlaterPopupTestsPrivate
 {
 	FPointerEvent PopLeftMouse()
 	{
@@ -36,6 +36,7 @@ namespace
 		"\t</popup>\n"
 		"</overlay>");
 }
+using namespace SlaterPopupTestsPrivate;
 
 /**
  * The `popup` element (T-439): an anchor child, a menu child, open and close by a view state or by a click on the anchor.

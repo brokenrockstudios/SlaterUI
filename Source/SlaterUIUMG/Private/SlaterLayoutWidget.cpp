@@ -21,7 +21,7 @@ namespace Slater
 	}
 }
 
-namespace
+namespace SlaterLayoutWidgetPrivate
 {
 	TSharedRef<SSlaterView> MakeView(const FString& LayoutId, FName StyleName, bool bMock)
 	{
@@ -31,6 +31,7 @@ namespace
 			.UseMockContext(bMock);
 	}
 }
+using namespace SlaterLayoutWidgetPrivate;
 
 // USlaterLayoutWidget
 

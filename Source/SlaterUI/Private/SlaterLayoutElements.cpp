@@ -11,7 +11,7 @@
 #include "Widgets/SNullWidget.h"
 #include "Widgets/Layout/SSpacer.h"
 
-namespace
+namespace SlaterLayoutElementsPrivate
 {
 	/** Alignments only where the markup said so. */
 	template <typename SlotType>
@@ -222,6 +222,7 @@ namespace
 		ensureMsgf(bOk, TEXT("SlaterUI stock element <%s>: %s"), Tag, *Error);
 	}
 }
+using namespace SlaterLayoutElementsPrivate;
 
 void Slater::RegisterLayoutElements(FSlaterElementRegistry& Registry)
 {

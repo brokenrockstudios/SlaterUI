@@ -8,7 +8,7 @@
 #include "UObject/UnrealType.h"
 #include "UObject/WeakObjectPtrTemplates.h"
 
-namespace
+namespace SlaterObjectScopePrivate
 {
 	using UE::FieldNotification::FFieldId;
 
@@ -742,6 +742,7 @@ namespace
 		return MakeUnique<FObjectPathSubscription>(Object.Get(), MoveTemp(Segments), MoveTemp(OnChange));
 	}
 }
+using namespace SlaterObjectScopePrivate;
 
 namespace Slater
 {

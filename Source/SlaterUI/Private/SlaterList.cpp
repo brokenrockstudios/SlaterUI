@@ -10,7 +10,7 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogSlaterList, Log, All);
 
-namespace
+namespace SlaterListPrivate
 {
 	FSlaterListStats GStats;
 	TSharedPtr<const ISlaterImageSource> GImageSource;
@@ -91,6 +91,7 @@ namespace
 		return Desc;
 	}
 }
+using namespace SlaterListPrivate;
 
 namespace Slater
 {

@@ -16,7 +16,7 @@
 #include "SlaterView.h"
 #include "UObject/StrongObjectPtr.h"
 
-namespace
+namespace SlaterExamplesTestsPrivate
 {
 	/** Whether the widget and every parent up to the root show: a `visible="false"` element collapses itself or its wrapper box. */
 	bool IsShown(TSharedPtr<SWidget> Widget)
@@ -48,6 +48,7 @@ namespace
 		return Found;
 	}
 }
+using namespace SlaterExamplesTestsPrivate;
 
 /**
  * The worked examples (SlaterUIExamples, T-553): each one builds in both shipped styles with no errors, so a renamed token

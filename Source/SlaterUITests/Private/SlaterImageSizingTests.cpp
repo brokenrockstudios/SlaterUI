@@ -10,7 +10,7 @@
 #include "Widgets/Images/SThrobber.h"
 #include "Widgets/Layout/SScaleBox.h"
 
-namespace
+namespace SlaterImageSizingTestsPrivate
 {
 	FSlaterBuildResult IsBuild(const TCHAR* Layout)
 	{
@@ -54,6 +54,7 @@ namespace
 		return FMath::IsNearlyEqual(float(Size.X), X, 0.5f) && FMath::IsNearlyEqual(float(Size.Y), Y, 0.5f);
 	}
 }
+using namespace SlaterImageSizingTestsPrivate;
 
 /** `<scale>`, `<image tint width height>` and `<throbber>` (T-528). */
 TEST_CLASS(SlaterImageSizingTests, "BRS.SlaterUI.ImageSizing")

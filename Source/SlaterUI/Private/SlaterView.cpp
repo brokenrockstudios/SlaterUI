@@ -19,7 +19,7 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogSlaterUI, Log, All);
 
-namespace
+namespace SlaterViewPrivate
 {
 	void AddError(FSlaterBuildResult& Out, const FString& Path, const FString& Message)
 	{
@@ -83,6 +83,7 @@ namespace
 		return FPaths::GetExtension(File).Equals(Extension, ESearchCase::IgnoreCase);
 	}
 }
+using namespace SlaterViewPrivate;
 
 void Slater::AddLayoutRoot(const FString& Directory)
 {

@@ -6,7 +6,7 @@
 #include "Widgets/Layout/SGridPanel.h"
 #include "Widgets/Layout/SSafeZone.h"
 
-namespace
+namespace SlaterPanelElementsPrivate
 {
 	/** Where each anchor word pins the child: minimum and maximum corner of the parent, 0 to 1 on each axis. */
 	FAnchors AnchorsOf(const TOptional<FName>& Word)
@@ -175,6 +175,7 @@ namespace
 		ensureMsgf(bOk, TEXT("SlaterUI stock element <%s>: %s"), Tag, *Error);
 	}
 }
+using namespace SlaterPanelElementsPrivate;
 
 void Slater::RegisterPanelElements(FSlaterElementRegistry& Registry)
 {

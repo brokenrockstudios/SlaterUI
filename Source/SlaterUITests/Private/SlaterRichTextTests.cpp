@@ -13,7 +13,7 @@
 #include "Styling/CoreStyle.h"
 #include "Widgets/Text/SRichTextBlock.h"
 
-namespace
+namespace SlaterRichTextTestsPrivate
 {
 	FSlaterBuildResult RtBuild(const FString& Layout)
 	{
@@ -60,6 +60,7 @@ namespace
 		OutDescent = -Measure->GetBaseline(Font, 1.f);
 	}
 }
+using namespace SlaterRichTextTestsPrivate;
 
 /** `<rich-text>` (T-527): plain text, runs, an inline image, bad markup with its line, and bound content. */
 TEST_CLASS(SlaterRichTextTests, "BRS.SlaterUI.RichText")

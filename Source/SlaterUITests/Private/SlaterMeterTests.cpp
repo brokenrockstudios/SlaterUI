@@ -21,7 +21,7 @@
 #include "Widgets/SOverlay.h"
 #include "Widgets/Layout/SBox.h"
 
-namespace
+namespace SlaterMeterTestsPrivate
 {
 	FString MtErrors(const FSlaterBuildResult& Result)
 	{
@@ -47,6 +47,7 @@ namespace
 		return Result.Root.IsValid() ? StaticCastSharedPtr<SSlaterMeter>(SlaterListKit::Find(Result.Root.ToSharedRef(), TEXT("SSlaterMeter"))) : nullptr;
 	}
 }
+using namespace SlaterMeterTestsPrivate;
 
 /** `<meter>` and `<rule>`: build, defaults from the style, clamping and bound values. */
 TEST_CLASS(SlaterMeterTests, "BRS.SlaterUI.Meter")

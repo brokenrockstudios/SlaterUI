@@ -11,7 +11,7 @@
 #include "Input/Events.h"
 #include "Widgets/SNullWidget.h"
 
-namespace
+namespace SlaterPopupPrivate
 {
 	const FName AttrPlacement(TEXT("placement"));
 
@@ -88,6 +88,7 @@ namespace
 		return Popup;
 	}
 }
+using namespace SlaterPopupPrivate;
 
 void SSlaterPopupMenu::Construct(const FArguments& InArgs, const TSharedRef<SSlaterPopup>& InPopup)
 {

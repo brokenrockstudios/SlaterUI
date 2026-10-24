@@ -6,7 +6,7 @@
 
 DEFINE_LOG_CATEGORY_STATIC(LogSlaterStock, Log, All);
 
-namespace
+namespace SlaterStockCommandsPrivate
 {
 	TWeakPtr<ISlaterScreenHost>& ScreenHost()
 	{
@@ -26,6 +26,7 @@ namespace
 		return false;
 	}
 }
+using namespace SlaterStockCommandsPrivate;
 
 void Slater::SetScreenHost(const TSharedPtr<ISlaterScreenHost>& Host)
 {

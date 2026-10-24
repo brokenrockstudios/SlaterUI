@@ -32,7 +32,7 @@
  * thread. Needs a real RHI (`-WithRHI`) because the frame is drawn with FWidgetRenderer. The numbers are written to
  * Saved/SlaterUI/ListProbe.txt and the log for Docs/SlaterUI/DevNotes.md.
  */
-namespace
+namespace SlaterListProbeTestsPrivate
 {
 	/** What every variant must be able to do; items are named i<generation>_<n>. */
 	class IPbGrid
@@ -407,6 +407,7 @@ namespace
 		return FString::Printf(TEXT("| %s | %s | %d | %.3f | %.3f | %.3f | %.3f | %d |\n"), Variant, Scenario, Widgets, PbMedianMs(F.Total), PbP95Ms(F.Total), PbMedianMs(F.Mutate), PbMedianMs(F.Draw), Polled);
 	}
 }
+using namespace SlaterListProbeTestsPrivate;
 
 /** Renders the shipped ListProbe layout, bound to mock data, to Saved/SlaterUI/Render/ListProbe_<Style>.png for review. */
 TEST_CLASS(SlaterListRenderTests, "BRS.SlaterUI.List.Render")

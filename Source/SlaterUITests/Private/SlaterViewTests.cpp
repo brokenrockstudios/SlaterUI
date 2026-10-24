@@ -11,7 +11,7 @@
 #include "Widgets/SWidget.h"
 #include "Widgets/Text/STextBlock.h"
 
-namespace
+namespace SlaterViewTestsPrivate
 {
 	const TCHAR* const VwPath = TEXT("Layouts/Test.sltr");
 
@@ -66,6 +66,7 @@ namespace
 		return A == B;
 	}
 }
+using namespace SlaterViewTestsPrivate;
 
 /** The two content elements, built through the stock registry against the shipped style. */
 TEST_CLASS(SlaterContentElementTests, "BRS.SlaterUI.Content.Elements")

@@ -4,7 +4,7 @@
 
 #include "Rendering/DrawElements.h"
 
-namespace
+namespace SlaterMeterPrivate
 {
 	FSlateBrush MakeBar(const FLinearColor& Color)
 	{
@@ -18,6 +18,7 @@ namespace
 		return Brush;
 	}
 }
+using namespace SlaterMeterPrivate;
 
 void SSlaterMeter::Construct(const FArguments& InArgs)
 {

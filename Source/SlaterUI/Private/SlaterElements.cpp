@@ -102,7 +102,7 @@ struct FSlaterCompiledTemplate::FNode
 FSlaterCompiledTemplate::FSlaterCompiledTemplate() = default;
 FSlaterCompiledTemplate::~FSlaterCompiledTemplate() = default;
 
-namespace
+namespace SlaterElementsPrivate
 {
 	using FResolvedNode = FSlaterCompiledTemplate::FNode;
 
@@ -1287,6 +1287,7 @@ namespace
 		});
 	}
 }
+using namespace SlaterElementsPrivate;
 
 namespace Slater
 {
@@ -1529,7 +1530,9 @@ namespace Slater
 	}
 
 	/** `on-click` and the `on-` events that name a command (not a `{Path}`), on the expanded tree, so templates and repeats are covered. */
-	static void CollectCommandRefs(const FSlaterNode& Node, TArray<FSlaterCommandRef>& Out)
+namespace SlaterElementsPrivate
+{
+	void CollectCommandRefs(const FSlaterNode& Node, TArray<FSlaterCommandRef>& Out)
 	{
 		for (const FSlaterAttribute& Attr : Node.Attributes)
 		{
@@ -1548,6 +1551,8 @@ namespace Slater
 			CollectCommandRefs(Child, Out);
 		}
 	}
+}
+using namespace SlaterElementsPrivate;
 
 	bool BuildLayout(const FSlaterNode& Root, const FString& Path, const ISlaterStyleSource& Style, FSlaterBuildResult& Out, const FSlaterBudget& Budget, const FSlaterElementRegistry& Registry)
 	{

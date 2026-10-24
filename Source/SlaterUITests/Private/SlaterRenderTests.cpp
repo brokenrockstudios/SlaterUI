@@ -15,16 +15,18 @@
 #include "RHI.h"
 #include "RenderingThread.h"
 #include "SlaterImages.h"
+#include "SlaterListTestKit.h"
 #include "SlaterStyle.h"
 #include "SlaterSurface.h"
 #include "SlaterView.h"
 #include "Slate/WidgetRenderer.h"
 #include "Styling/CoreStyle.h"
+#include "Widgets/Input/SCheckBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/SWidget.h"
 #include "Widgets/SWindow.h"
 
-namespace
+namespace SlaterRenderTestsPrivate
 {
 	const FString RenderDir()
 	{
@@ -61,6 +63,7 @@ namespace
 		return Seconds[Seconds.Num() / 2] * 1000.0;
 	}
 }
+using namespace SlaterRenderTestsPrivate;
 
 /**
  * Renders the gallery and the panel in both shipped styles to PNGs in Saved/SlaterUI/Render for review. There is no
@@ -354,6 +357,22 @@ bool FSlaterRenderSettingsTest::RunTest(const FString&)
 
 	IFileManager::Get().MakeDirectory(*RenderDir(), true);
 	FWidgetRenderer Renderer(false);
+	// The first window of the process rasterizes the tick icon too late for its own picture, so a throwaway view asks for it first (T-538).
+	{
+		const TSharedRef<SSlaterView> Warm = SNew(SSlaterView).LayoutId(TEXT("Settings")).StyleName(TEXT("Base")).UseMockContext(true);
+		if (const TSharedPtr<SWidget> Box = SlaterListKit::Find(Warm, TEXT("SCheckBox")))
+		{
+			StaticCastSharedPtr<SCheckBox>(Box)->ToggleCheckedState();
+		}
+		RdShowInWindow(Warm);
+		for (int32 Pass = 0; Pass < 3; ++Pass)
+		{
+			Warm->SlatePrepass(1.f);
+			Renderer.DrawWidget(Warm, FVector2D(FMath::CeilToInt(Warm->GetDesiredSize().X), FMath::CeilToInt(Warm->GetDesiredSize().Y)));
+			FlushRenderingCommands();
+			FPlatformProcess::Sleep(0.05f);
+		}
+	}
 	for (const TCHAR* Style : {TEXT("Base"), TEXT("Dusk")})
 	{
 		const TSharedRef<SSlaterView> View = SNew(SSlaterView).LayoutId(TEXT("Settings")).StyleName(Style).UseMockContext(true);
@@ -361,6 +380,12 @@ bool FSlaterRenderSettingsTest::RunTest(const FString&)
 		{
 			continue;
 		}
+		// The mock has Mute off; tick it so the picture shows the checked box and its tick (T-538).
+		if (const TSharedPtr<SWidget> Box = SlaterListKit::Find(View, TEXT("SCheckBox")))
+		{
+			StaticCastSharedPtr<SCheckBox>(Box)->ToggleCheckedState();
+		}
+		RdShowInWindow(View);
 		UTextureRenderTarget2D* Target = nullptr;
 		for (int32 Pass = 0; Pass < 2; ++Pass)
 		{

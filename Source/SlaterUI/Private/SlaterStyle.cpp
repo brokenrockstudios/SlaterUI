@@ -63,7 +63,7 @@ namespace Slater
 		return !bSegmentStart;
 	}
 
-	namespace
+	namespace SlaterStylePrivate
 	{
 		int32 EditDistance(const FString& A, const FString& B)
 		{
@@ -87,6 +87,7 @@ namespace Slater
 			return Previous[B.Len()];
 		}
 	}
+	using namespace SlaterStylePrivate;
 
 	FString SuggestNearest(const FString& Name, const TArray<FString>& Candidates)
 	{
@@ -125,7 +126,7 @@ namespace Slater
 	}
 }
 
-namespace
+namespace SlaterStylePrivate
 {
 	/** Name, then each parent, calling Try on each until it succeeds. */
 	template <typename TryFunc>
@@ -177,6 +178,7 @@ namespace
 		}
 	}
 }
+using namespace SlaterStylePrivate;
 
 bool FSlaterStyle::FindColor(FName Token, FLinearColor& OutColor) const
 {
@@ -329,7 +331,7 @@ void FSlaterStyleStack::GetKnownTokens(ESlaterTokenKind Kind, TArray<FName>& Out
 
 // ---- Style files ----
 
-namespace
+namespace SlaterStylePrivate
 {
 	/** `#RRGGBB` or `#RRGGBBAA`, sRGB as designers write it. */
 	bool ParseColorLiteral(const FString& Text, FLinearColor& Out)
@@ -688,6 +690,7 @@ namespace
 		}
 	};
 }
+using namespace SlaterStylePrivate;
 
 bool Slater::ParseStyle(const FString& Text, const FString& Path, FSlaterStyle& OutStyle, TArray<FSlaterError>& OutErrors, const FSlaterLimits& Limits)
 {

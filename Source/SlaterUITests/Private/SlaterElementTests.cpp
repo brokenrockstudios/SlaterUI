@@ -8,7 +8,7 @@
 #include "Widgets/Layout/SSpacer.h"
 #include "Widgets/SWidget.h"
 
-namespace
+namespace SlaterElementTestsPrivate
 {
 	const TCHAR* const ElPath = TEXT("Layouts/Test.sltr");
 
@@ -86,6 +86,7 @@ namespace
 		return static_cast<const SBoxPanel::FSlot&>(Panel->GetChildren()->GetSlotAt(Index));
 	}
 }
+using namespace SlaterElementTestsPrivate;
 
 /** Each stock element builds the Slate widget it names, with its slots set from the children's attributes. */
 TEST_CLASS(SlaterElementBuildTests, "BRS.SlaterUI.Elements.Build")

@@ -10,7 +10,7 @@
 #include "Widgets/SWidget.h"
 #include "Widgets/Text/STextBlock.h"
 
-namespace
+namespace SlaterReloadTestsPrivate
 {
 	TSharedPtr<STextBlock> RlFindText(const TSharedRef<SWidget>& Root)
 	{
@@ -46,6 +46,7 @@ namespace
 		return FString::Printf(TEXT("<style name=\"ReloadTest\" extends=\"Base\"><color name=\"UI.Color.Text\" value=\"%s\"/></style>"), Color);
 	}
 }
+using namespace SlaterReloadTestsPrivate;
 
 /** Live reload (T-344): what a changed file on disk does, without the folder watcher (that is editor-only; the tests call what it calls). */
 TEST_CLASS(SlaterReloadTests, "BRS.SlaterUI.Reload")

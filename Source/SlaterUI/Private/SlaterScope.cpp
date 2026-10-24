@@ -92,7 +92,7 @@ private:
 	bool bDirty = false;
 };
 
-namespace
+namespace SlaterScopePrivate
 {
 	class FTableSubscription : public ISlaterSubscription
 	{
@@ -380,6 +380,7 @@ namespace
 		}
 	};
 }
+using namespace SlaterScopePrivate;
 
 namespace Slater
 {

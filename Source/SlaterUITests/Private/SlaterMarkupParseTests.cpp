@@ -5,7 +5,7 @@
 #include "CQTest.h"
 #include "SlaterMarkup.h"
 
-namespace
+namespace SlaterMarkupParseTestsPrivate
 {
 	const TCHAR* const MkPath = TEXT("Layouts/Test.sltr");
 
@@ -60,6 +60,7 @@ namespace
 		return Text;
 	}
 }
+using namespace SlaterMarkupParseTestsPrivate;
 
 /** Well-formed files become a tree with the right tags, attributes, text and positions. */
 TEST_CLASS(SlaterParseTests, "BRS.SlaterUI.Parse")
