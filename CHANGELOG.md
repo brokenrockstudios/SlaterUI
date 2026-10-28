@@ -2,6 +2,10 @@
 
 Version format `YYMM.DDRR` (year, month, day, revision of that day). Newest first. Keep entries to one line where possible.
 
+## 2610.2401
+
+- `rich-text` typewriter reveal (T-545): `reveal="char|word"` with `reveal-speed` (steps per second, defaults 40 / 8). An active timer advances the count only while text is left; `Slater.MotionScale` 0 shows everything at once, other values stretch the time. A cut inside a run closes it, so a tag never shows as text; a changed (bound) text restarts. New `Slater::RichRevealTotal/RichRevealPrefix`, `SSlaterRichText::AdvanceReveal` (manual clock for tests), sample `Layouts/Typewriter.sltr`; tests `RichText.Reveal_*`.
+
 ## 2610.2301
 
 - `checkbox` draws a tick over the checked box (T-538): `Icons/Check.svg` tinted by the new `UI.Color.CheckMark` token (white in `Base`), layered through the content slot so layout is unchanged. `FSlaterControlLook::CheckTick` exposes the brush; test `ControlStyle.*` checks it takes the token, `Render.Settings` shows the checked box in `Settings_<Style>.png`.

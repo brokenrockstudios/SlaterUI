@@ -5,6 +5,8 @@
 #include "CQTest.h"
 #include "Fonts/FontMeasure.h"
 #include "Framework/Application/SlateApplication.h"
+#include "HAL/IConsoleManager.h"
+#include "SlaterView.h"
 #include "Misc/AutomationTest.h"
 #include "Rendering/SlateRenderer.h"
 #include "SlaterListTestKit.h"
@@ -50,6 +52,30 @@ namespace SlaterRichTextTestsPrivate
 		Widget->SlatePrepass(1.f);
 		return Widget->GetDesiredSize();
 	}
+
+	/** A widget that reveals Text by Mode at Speed steps per second, laid out, with nothing shown yet (T-545). */
+	TSharedRef<SSlaterRichText> RtRevealing(const FString& Text, Slater::ERichReveal Mode, float Speed)
+	{
+		FSlaterStyleStack Stack;
+		Slater::StyleLibrary().BuildStack(TEXT("Base"), Stack);
+		const TSharedRef<SSlaterRichText> Widget = SNew(SSlaterRichText).Font(FSlaterFont{TEXT("Regular"), 14}).Reveal(Mode).RevealSpeed(Speed);
+		Widget->SetRichText(Text, Stack);
+		return Widget;
+	}
+
+	/** Sets `Slater.MotionScale` and puts it back to 1 when it goes out of scope. */
+	struct FMotionScaleGuard
+	{
+		explicit FMotionScaleGuard(float Value) { Set(Value); }
+		~FMotionScaleGuard() { Set(1.f); }
+		static void Set(float Value)
+		{
+			if (IConsoleVariable* Variable = IConsoleManager::Get().FindConsoleVariable(TEXT("Slater.MotionScale")))
+			{
+				Variable->Set(Value, ECVF_SetByCode);
+			}
+		}
+	};
 
 	/** The line height and the descent below the baseline of the font RtLaidOut uses, from the engine's font measure. */
 	void RtLineOf14(float& OutHeight, float& OutDescent)
@@ -309,6 +335,207 @@ TEST_CLASS(SlaterRichTextTests, "BRS.SlaterUI.RichText")
 			// The run sample, the image placement line (T-544), the bound description and the literal-bracket caption.
 			ASSERT_THAT(AreEqual(4, Texts));
 			ASSERT_THAT(IsTrue(bDescription));
+		}
+	}
+
+	TEST_METHOD(Reveal_Prefix_CutsByCharacter_AndClosesARunItCutsInside)
+	{
+		const FString Text = TEXT("Hit <b>hard</> now");
+		ASSERT_THAT(AreEqual(12, Slater::RichRevealTotal(Text, Slater::ERichReveal::Char)));
+		ASSERT_THAT(AreEqual(FString(), Slater::RichRevealPrefix(Text, Slater::ERichReveal::Char, 0)));
+		ASSERT_THAT(AreEqual(FString(TEXT("Hit ")), Slater::RichRevealPrefix(Text, Slater::ERichReveal::Char, 4)));
+		ASSERT_THAT(AreEqual(FString(TEXT("Hit <b>ha</>")), Slater::RichRevealPrefix(Text, Slater::ERichReveal::Char, 6)));
+		ASSERT_THAT(AreEqual(FString(TEXT("Hit <b>hard</> ")), Slater::RichRevealPrefix(Text, Slater::ERichReveal::Char, 9)));
+		ASSERT_THAT(AreEqual(Text, Slater::RichRevealPrefix(Text, Slater::ERichReveal::Char, 12)));
+		ASSERT_THAT(AreEqual(Text, Slater::RichRevealPrefix(Text, Slater::ERichReveal::Char, 99)));
+	}
+
+	TEST_METHOD(Reveal_Prefix_CutsByWord_AnImageIsAWord_AnEntityIsOneCharacter)
+	{
+		const FString Words = TEXT("Hit <b>hard words</> now");
+		ASSERT_THAT(AreEqual(4, Slater::RichRevealTotal(Words, Slater::ERichReveal::Word)));
+		ASSERT_THAT(AreEqual(FString(TEXT("Hit")), Slater::RichRevealPrefix(Words, Slater::ERichReveal::Word, 1)));
+		ASSERT_THAT(AreEqual(FString(TEXT("Hit <b>hard</>")), Slater::RichRevealPrefix(Words, Slater::ERichReveal::Word, 2)));
+		ASSERT_THAT(AreEqual(FString(TEXT("Hit <b>hard words</>")), Slater::RichRevealPrefix(Words, Slater::ERichReveal::Word, 3)));
+
+		const FString Image = TEXT("A <img src=\"Gift\" tint=\"UI.Color.Text\"/> B");
+		ASSERT_THAT(AreEqual(3, Slater::RichRevealTotal(Image, Slater::ERichReveal::Word)));
+		ASSERT_THAT(AreEqual(FString(TEXT("A <img src=\"Gift\" tint=\"UI.Color.Text\"/>")), Slater::RichRevealPrefix(Image, Slater::ERichReveal::Word, 2)));
+		ASSERT_THAT(AreEqual(FString(TEXT("A ")), Slater::RichRevealPrefix(Image, Slater::ERichReveal::Char, 2)));
+
+		const FString Entity = TEXT("a &lt; b");
+		ASSERT_THAT(AreEqual(5, Slater::RichRevealTotal(Entity, Slater::ERichReveal::Char)));
+		ASSERT_THAT(AreEqual(FString(TEXT("a &lt;")), Slater::RichRevealPrefix(Entity, Slater::ERichReveal::Char, 3)));
+	}
+
+	TEST_METHOD(Reveal_NoPrefix_ShowsATagAsText)
+	{
+		// Every cut of a text with every kind of tag is a valid text: the checker finds no problem in it.
+		FSlaterStyleStack Stack;
+		Slater::StyleLibrary().BuildStack(TEXT("Base"), Stack);
+		const FString Text = TEXT("A <b>bold</> and <color value=\"UI.Color.Danger\">red words</> and <img src=\"Gift\"/> end");
+		for (const Slater::ERichReveal Mode : {Slater::ERichReveal::Char, Slater::ERichReveal::Word})
+		{
+			const int32 Total = Slater::RichRevealTotal(Text, Mode);
+			for (int32 Count = 0; Count <= Total; ++Count)
+			{
+				TArray<FSlaterTextProblem> Problems;
+				Slater::CheckRichText(Slater::RichRevealPrefix(Text, Mode, Count), Stack, Problems);
+				ASSERT_THAT(IsTrue(Problems.IsEmpty()));
+			}
+		}
+	}
+
+	TEST_METHOD(Reveal_Char_FollowsAManualClock_AndTicksOnlyWhileTextIsLeft)
+	{
+		const TSharedRef<SSlaterRichText> Widget = RtRevealing(TEXT("Hit <b>hard</> now"), Slater::ERichReveal::Char, 10.f);
+		ASSERT_THAT(AreEqual(12, Widget->GetRevealTotal()));
+		ASSERT_THAT(AreEqual(0, Widget->GetRevealedCount()));
+		ASSERT_THAT(IsTrue(Widget->GetShownMarkup().IsEmpty()));
+		ASSERT_THAT(IsTrue(Widget->IsRevealing()));
+		ASSERT_THAT(IsTrue(Widget->AdvanceReveal(0.5f)));
+		ASSERT_THAT(AreEqual(5, Widget->GetRevealedCount()));
+		ASSERT_THAT(AreEqual(FString(TEXT("Hit <b>h</>")), Widget->GetShownMarkup()));
+		ASSERT_THAT(IsTrue(Widget->AdvanceReveal(0.04f)));
+		ASSERT_THAT(AreEqual(5, Widget->GetRevealedCount())); // part of a step: nothing new shown
+		ASSERT_THAT(IsTrue(Widget->AdvanceReveal(0.07f)));
+		ASSERT_THAT(AreEqual(6, Widget->GetRevealedCount()));
+		ASSERT_THAT(IsFalse(Widget->AdvanceReveal(10.f)));
+		ASSERT_THAT(AreEqual(12, Widget->GetRevealedCount()));
+		ASSERT_THAT(AreEqual(FString(TEXT("Hit <b>hard</> now")), Widget->GetShownMarkup()));
+	}
+
+	TEST_METHOD(Reveal_Word_FollowsAManualClock)
+	{
+		const TSharedRef<SSlaterRichText> Widget = RtRevealing(TEXT("Hit <b>hard words</> now"), Slater::ERichReveal::Word, 2.f);
+		ASSERT_THAT(AreEqual(4, Widget->GetRevealTotal()));
+		ASSERT_THAT(IsTrue(Widget->AdvanceReveal(1.f)));
+		ASSERT_THAT(AreEqual(2, Widget->GetRevealedCount()));
+		ASSERT_THAT(AreEqual(FString(TEXT("Hit <b>hard</>")), Widget->GetShownMarkup()));
+		ASSERT_THAT(IsFalse(Widget->AdvanceReveal(1.f)));
+		ASSERT_THAT(AreEqual(4, Widget->GetRevealedCount()));
+		ASSERT_THAT(AreEqual(FString(TEXT("Hit <b>hard words</> now")), Widget->GetShownMarkup()));
+	}
+
+	TEST_METHOD(Reveal_AStyledRunRevealedInTheMiddle_KeepsItsStyle)
+	{
+		const TSharedRef<SSlaterRichText> Widget = RtRevealing(TEXT("Go <color value=\"UI.Color.Danger\">red alert</> now"), Slater::ERichReveal::Char, 10.f);
+		Widget->AdvanceReveal(0.5f); // 5 characters: "Go " and "re"
+		Widget->SlatePrepass(1.f);
+		FSlaterStyleStack Stack;
+		Slater::StyleLibrary().BuildStack(TEXT("Base"), Stack);
+		FLinearColor Danger;
+		ASSERT_THAT(IsTrue(Stack.FindColor(TEXT("UI.Color.Danger"), Danger)));
+		ASSERT_THAT(AreEqual(1, Widget->GetRuns().Num()));
+		ASSERT_THAT(AreEqual(FString(TEXT("re")), Widget->GetRuns()[0].Text));
+		ASSERT_THAT(AreEqual(Danger.ToString(), Widget->GetRuns()[0].Color.ToString()));
+	}
+
+	TEST_METHOD(Reveal_ChangedTextRestarts_TheSameTextKeepsItsProgress)
+	{
+		FSlaterStyleStack Stack;
+		Slater::StyleLibrary().BuildStack(TEXT("Base"), Stack);
+		const TSharedRef<SSlaterRichText> Widget = RtRevealing(TEXT("First line"), Slater::ERichReveal::Char, 8.f);
+		Widget->AdvanceReveal(0.5f);
+		ASSERT_THAT(AreEqual(4, Widget->GetRevealedCount()));
+		Widget->SetRichText(TEXT("First line"), Stack);
+		ASSERT_THAT(AreEqual(4, Widget->GetRevealedCount()));
+		ASSERT_THAT(IsFalse(Widget->AdvanceReveal(10.f)));
+		ASSERT_THAT(AreEqual(10, Widget->GetRevealedCount()));
+
+		Widget->SetRichText(TEXT("A <b>second</> text"), Stack);
+		ASSERT_THAT(AreEqual(0, Widget->GetRevealedCount()));
+		ASSERT_THAT(AreEqual(13, Widget->GetRevealTotal()));
+		ASSERT_THAT(IsTrue(Widget->GetShownMarkup().IsEmpty()));
+		ASSERT_THAT(IsTrue(Widget->IsRevealing()));
+		ASSERT_THAT(IsTrue(Widget->AdvanceReveal(0.25f)));
+		ASSERT_THAT(AreEqual(FString(TEXT("A ")), Widget->GetShownMarkup()));
+	}
+
+	TEST_METHOD(Reveal_AtMotionScaleZero_ShowsEverythingAtOnce_AndNeverTicks)
+	{
+		FMotionScaleGuard Scale(0.f);
+		const TSharedRef<SSlaterRichText> Widget = RtRevealing(TEXT("Hit <b>hard</> now"), Slater::ERichReveal::Char, 10.f);
+		ASSERT_THAT(AreEqual(12, Widget->GetRevealedCount()));
+		ASSERT_THAT(AreEqual(FString(TEXT("Hit <b>hard</> now")), Widget->GetShownMarkup()));
+		ASSERT_THAT(IsFalse(Widget->IsRevealing()));
+
+		// A scale set mid-reveal finishes it on the next advance.
+		FMotionScaleGuard Back(1.f);
+		const TSharedRef<SSlaterRichText> Midway = RtRevealing(TEXT("Hit <b>hard</> now"), Slater::ERichReveal::Char, 8.f);
+		Midway->AdvanceReveal(0.25f);
+		ASSERT_THAT(AreEqual(2, Midway->GetRevealedCount()));
+		FMotionScaleGuard Instant(0.f);
+		ASSERT_THAT(IsFalse(Midway->AdvanceReveal(0.f)));
+		ASSERT_THAT(AreEqual(12, Midway->GetRevealedCount()));
+	}
+
+	TEST_METHOD(Reveal_NotSet_ShowsTheWholeText_AndNeverTicks)
+	{
+		const TSharedRef<SSlaterRichText> Widget = RtLaidOut(TEXT("Hit <b>hard</> now"));
+		ASSERT_THAT(AreEqual(FString(TEXT("Hit <b>hard</> now")), Widget->GetShownMarkup()));
+		ASSERT_THAT(IsFalse(Widget->IsRevealing()));
+		ASSERT_THAT(IsFalse(Widget->AdvanceReveal(1.f)));
+	}
+
+	TEST_METHOD(Reveal_Attributes_AreTyped_AndBoundTextRestartsIt)
+	{
+		const FSlaterBuildResult Good = RtBuild(TEXT("<vbox><rich-text reveal=\"word\" reveal-speed=\"4\">One two three</rich-text></vbox>"));
+		ASSERT_THAT(IsTrue(Good.Succeeded()));
+		const TSharedPtr<SSlaterRichText> Widget = RtWidget(Good);
+		ASSERT_THAT(IsTrue(Widget.IsValid()));
+		ASSERT_THAT(AreEqual(3, Widget->GetRevealTotal()));
+		Widget->AdvanceReveal(0.5f);
+		ASSERT_THAT(AreEqual(2, Widget->GetRevealedCount()));
+
+		ASSERT_THAT(IsFalse(RtBuild(TEXT("<vbox><rich-text reveal=\"line\">x</rich-text></vbox>")).Succeeded()));
+		ASSERT_THAT(IsFalse(RtBuild(TEXT("<vbox><rich-text reveal-speed=\"4\">x</rich-text></vbox>")).Succeeded()));
+		ASSERT_THAT(IsFalse(RtBuild(TEXT("<vbox><rich-text reveal=\"char\" reveal-speed=\"0\">x</rich-text></vbox>")).Succeeded()));
+
+		ASSERT_THAT(IsTrue(Rig.Init(TEXT("<vbox><rich-text reveal=\"char\" reveal-speed=\"10\">{Description}</rich-text></vbox>"), TEXT("{\"Description\":\"Plain words\"}"), ESlaterBindMode::Pushed)));
+		const TSharedPtr<SSlaterRichText> Bound = RtWidget(Rig.Result);
+		ASSERT_THAT(IsTrue(Bound.IsValid()));
+		Bound->AdvanceReveal(10.f);
+		ASSERT_THAT(AreEqual(11, Bound->GetRevealedCount()));
+		ASSERT_THAT(IsTrue(Rig.Model->SetValue(TEXT("Description"), TEXT("A <b>strong</> sword"))));
+		ASSERT_THAT(AreEqual(0, Bound->GetRevealedCount()));
+		ASSERT_THAT(AreEqual(14, Bound->GetRevealTotal()));
+		ASSERT_THAT(IsTrue(Bound->IsRevealing()));
+	}
+
+	TEST_METHOD(Reveal_LongText_CostPerTick_IsLoggedForDevNotes)
+	{
+		// Not an assertion on time (machines differ): the numbers go to the log and to DevNotes (T-545).
+		FString Text;
+		for (int32 I = 0; I < 40; ++I)
+		{
+			Text += TEXT("A <b>sharp</> blade, <i>light</> in the hand, deals <color value=\"UI.Color.Danger\">12 damage</> and costs one gift. ");
+		}
+		const TSharedRef<SSlaterRichText> Widget = RtRevealing(Text, Slater::ERichReveal::Char, 40.f);
+		Widget->SlatePrepass(1.f);
+		const int32 Ticks = 200;
+		const double Start = FPlatformTime::Seconds();
+		for (int32 I = 0; I < Ticks; ++I)
+		{
+			Widget->AdvanceReveal(1.f / 40.f);
+			Widget->SlatePrepass(1.f);
+		}
+		const double PerTickMs = (FPlatformTime::Seconds() - Start) * 1000.0 / Ticks;
+		UE_LOG(LogTemp, Log, TEXT("T-545 reveal cost: %d chars of markup, prefix + SetText + prepass %.3f ms per tick"), Text.Len(), PerTickMs);
+		ASSERT_THAT(AreEqual(Ticks, Widget->GetRevealedCount()));
+	}
+
+	TEST_METHOD(TheTypewriterSample_BuildsInBothStyles_AndRevealsItsText)
+	{
+		for (const TCHAR* Style : {TEXT("Base"), TEXT("Dusk")})
+		{
+			const TSharedRef<SSlaterView> View = SNew(SSlaterView).LayoutId(TEXT("Typewriter")).StyleName(Style).UseMockContext(true);
+			ASSERT_THAT(IsFalse(View->HasErrors()));
+			const TSharedPtr<SWidget> Found = SlaterListKit::Find(View, TEXT("SSlaterRichText"));
+			ASSERT_THAT(IsTrue(Found.IsValid()));
+			const TSharedRef<SSlaterRichText> Widget = StaticCastSharedRef<SSlaterRichText>(Found.ToSharedRef());
+			ASSERT_THAT(IsTrue(Widget->GetRevealTotal() > 0));
+			ASSERT_THAT(AreEqual(0, Widget->GetRevealedCount()));
 		}
 	}
 

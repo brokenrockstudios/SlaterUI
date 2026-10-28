@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<!-- Typewriter reveal (T-545): reveal="char" or reveal="word" shows the text a step at a time, reveal-speed steps per second (default 40 characters or 8 words). Runs reveal in place and a tag never shows as text. A changed bound text starts over, and Slater.MotionScale 0 shows everything at once. -->
+<surface role="UI.Surface.Panel" inset="UI.Space.L" width="360">
+	<vbox>
+		<text font="UI.Font.Heading">Typewriter</text>
+		<spacer height="UI.Space.M"/>
+		<rich-text wrap="true" reveal="char" reveal-speed="30">A &lt;b&gt;sharp&lt;/&gt; blade, &lt;i&gt;light&lt;/&gt; in the hand. Deals &lt;color value="UI.Color.Danger"&gt;12 damage&lt;/&gt; and costs &lt;img src="Gift" tint="UI.Color.Text"/&gt; one gift.</rich-text>
+		<spacer height="UI.Space.M"/>
+		<rule/>
+		<spacer height="UI.Space.M"/>
+		<text font="UI.Font.Caption" color="UI.Color.TextMuted">By word, from data:</text>
+		<spacer height="UI.Space.S"/>
+		<rich-text wrap="true" reveal="word" reveal-speed="6">{Description}</rich-text>
+	</vbox>
+</surface>

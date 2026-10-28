@@ -4,6 +4,7 @@
 
 #include "SlaterElements.h"
 #include "SlaterList.h"
+#include "SlaterMotion.h"
 
 #include "Fonts/FontMeasure.h"
 #include "Framework/Application/SlateApplication.h"
@@ -463,12 +464,28 @@ namespace SlaterRichTextPrivate
 		static const FName Left(TEXT("left"));
 		static const FName Center(TEXT("center"));
 		const FName Justify = Context.GetEnum(TEXT("justify"), Left);
+		const FName RevealWord = Context.GetEnum(TEXT("reveal"), TEXT("none"));
+		const Slater::ERichReveal Reveal = RevealWord == TEXT("char") ? Slater::ERichReveal::Char : RevealWord == TEXT("word") ? Slater::ERichReveal::Word : Slater::ERichReveal::None;
+		if (Reveal == Slater::ERichReveal::None && Context.Has(TEXT("reveal-speed")))
+		{
+			Context.Failure = TEXT("reveal-speed needs reveal=\"char\" or reveal=\"word\"");
+			return nullptr;
+		}
+		// Steps per second: about a fast typist for characters, a calm reading pace for words.
+		const float Speed = Context.GetMetric(TEXT("reveal-speed"), Reveal == Slater::ERichReveal::Word ? 8.f : 40.f);
+		if (Reveal != Slater::ERichReveal::None && Speed <= 0.f)
+		{
+			Context.Failure = TEXT("reveal-speed must be above 0 (steps per second)");
+			return nullptr;
+		}
 		const bool bBound = Slater::IsBindingExpr(Context.Node.Text);
 		TSharedRef<SSlaterRichText> Widget = SNew(SSlaterRichText)
 			.Font(Context.GetFont(TEXT("font")))
 			.Color(Context.GetColor(TEXT("color")))
 			.Wrap(Context.GetBool(TEXT("wrap"), false))
-			.Justify(Justify == Center ? ETextJustify::Center : Justify == TEXT("right") ? ETextJustify::Right : ETextJustify::Left);
+			.Justify(Justify == Center ? ETextJustify::Center : Justify == TEXT("right") ? ETextJustify::Right : ETextJustify::Left)
+			.Reveal(Reveal)
+			.RevealSpeed(Speed);
 		if (Context.Style)
 		{
 			Widget->SetRichText(bBound ? FString() : Context.Node.Text, *Context.Style);
@@ -506,11 +523,159 @@ namespace SlaterRichTextPrivate
 		}
 		return Desc;
 	}
+
+	/** One visible step of a text (T-545): a character, an entity or an `img`. */
+	struct FRevealUnit
+	{
+		/** Offset in the markup just after the unit. */
+		int32 End = 0;
+		bool bSpace = false;
+		/** Inside a `<name>..</>` run, so a cut after it needs a `</>`. */
+		bool bInRun = false;
+	};
+
+	/** Length of the entity at Index (`&lt; &gt; &quot; &amp;`), or 1 for any other character. */
+	int32 RevealCharLength(const FString& Text, int32 Index)
+	{
+		if (Text[Index] == TEXT('&'))
+		{
+			for (const TCHAR* Entity : {TEXT("&lt;"), TEXT("&gt;"), TEXT("&quot;"), TEXT("&amp;")})
+			{
+				const int32 Len = FCString::Strlen(Entity);
+				if (Text.Mid(Index, Len) == Entity)
+				{
+					return Len;
+				}
+			}
+		}
+		return 1;
+	}
+
+	/** The visible units in order. Reads tags the way `ScanTags` does: a run on one line, closed by `</>`; anything else is plain text. */
+	void ListRevealUnits(const FString& Text, TArray<FRevealUnit>& OutUnits)
+	{
+		const int32 Num = Text.Len();
+		auto AddChars = [&](int32 From, int32 To, bool bInRun)
+		{
+			for (int32 I = From; I < To;)
+			{
+				const int32 Len = RevealCharLength(Text, I);
+				FRevealUnit& Unit = OutUnits.AddDefaulted_GetRef();
+				Unit.End = I + Len;
+				Unit.bSpace = FChar::IsWhitespace(Text[I]);
+				Unit.bInRun = bInRun;
+				I += Len;
+			}
+		};
+		int32 I = 0;
+		while (I < Num)
+		{
+			if (Text[I] == TEXT('<') && I + 1 < Num && IsRichNameChar(Text[I + 1]))
+			{
+				int32 Gt = I + 1;
+				bool bQuoted = false;
+				while (Gt < Num && Text[Gt] != TEXT('\n') && (bQuoted || Text[Gt] != TEXT('>')))
+				{
+					bQuoted ^= Text[Gt] == TEXT('"');
+					++Gt;
+				}
+				if (Gt < Num && Text[Gt] == TEXT('>'))
+				{
+					if (Text[Gt - 1] == TEXT('/'))
+					{
+						FRevealUnit& Unit = OutUnits.AddDefaulted_GetRef();
+						Unit.End = Gt + 1;
+						I = Gt + 1;
+						continue;
+					}
+					int32 Close = INDEX_NONE;
+					for (int32 K = Gt + 1; K + 2 < Num && Text[K] != TEXT('\n'); ++K)
+					{
+						if (Text[K] == TEXT('<') && Text[K + 1] == TEXT('/') && Text[K + 2] == TEXT('>'))
+						{
+							Close = K;
+							break;
+						}
+					}
+					if (Close != INDEX_NONE)
+					{
+						AddChars(Gt + 1, Close, true);
+						I = Close + 3;
+						continue;
+					}
+				}
+			}
+			const int32 Len = RevealCharLength(Text, I);
+			AddChars(I, I + Len, false);
+			I += Len;
+		}
+	}
+
+	/** The index of the unit that ends step Step (1-based) in Mode; INDEX_NONE if the text has fewer. */
+	int32 RevealStepUnit(const TArray<FRevealUnit>& Units, Slater::ERichReveal Mode, int32 Step)
+	{
+		int32 Seen = 0;
+		for (int32 I = 0; I < Units.Num(); ++I)
+		{
+			const bool bEnds = Mode == Slater::ERichReveal::Char || (!Units[I].bSpace && (I + 1 == Units.Num() || Units[I + 1].bSpace));
+			if (bEnds && ++Seen == Step)
+			{
+				return I;
+			}
+		}
+		return INDEX_NONE;
+	}
 }
 using namespace SlaterRichTextPrivate;
 
 namespace Slater
 {
+	int32 RichRevealTotal(const FString& Text, ERichReveal Mode)
+	{
+		if (Mode == ERichReveal::None)
+		{
+			return 0;
+		}
+		TArray<FRevealUnit> Units;
+		ListRevealUnits(Text, Units);
+		if (Mode == ERichReveal::Char)
+		{
+			return Units.Num();
+		}
+		int32 Words = 0;
+		for (int32 I = 0; I < Units.Num(); ++I)
+		{
+			Words += !Units[I].bSpace && (I + 1 == Units.Num() || Units[I + 1].bSpace);
+		}
+		return Words;
+	}
+
+	FString RichRevealPrefix(const FString& Text, ERichReveal Mode, int32 Count)
+	{
+		if (Mode == ERichReveal::None || Count >= RichRevealTotal(Text, Mode))
+		{
+			return Text;
+		}
+		if (Count <= 0)
+		{
+			return FString();
+		}
+		TArray<FRevealUnit> Units;
+		ListRevealUnits(Text, Units);
+		const int32 Index = RevealStepUnit(Units, Mode, Count);
+		if (Index == INDEX_NONE)
+		{
+			return Text;
+		}
+		// A cut inside a run closes it. The run's opening tag has to come first, so the cut keeps everything before it.
+		FString Cut = Text.Left(Units[Index].End);
+		if (Units[Index].bInRun)
+		{
+			Cut += TEXT("</>");
+		}
+		return Cut;
+	}
+
 	void CheckRichText(const FString& Text, const ISlaterStyleSource& Style, TArray<FSlaterTextProblem>& OutProblems)
 	{
 		TArray<FRichTag> Tags;
@@ -535,6 +700,8 @@ namespace Slater
 			RichAttr(TEXT("color"), ESlaterAttrType::Color),
 			RichAttr(TEXT("wrap"), ESlaterAttrType::Bool),
 			RichAttr(TEXT("justify"), ESlaterAttrType::Enum, {TEXT("left"), TEXT("center"), TEXT("right")}),
+			RichAttr(TEXT("reveal"), ESlaterAttrType::Enum, {TEXT("none"), TEXT("char"), TEXT("word")}),
+			RichAttr(TEXT("reveal-speed"), ESlaterAttrType::Metric),
 		};
 		Desc.Children = ESlaterChildRule::None;
 		Desc.SlotAttrs = ESlaterSlotAttrs::None;
@@ -569,6 +736,8 @@ void SSlaterRichText::Construct(const FArguments& InArgs)
 	Snapshot->BaseFont = InArgs._Font;
 	Snapshot->BaseColor = InArgs._Color;
 	Snapshot->Base = MakeBaseStyle(InArgs._Font, InArgs._Color);
+	RevealMode = InArgs._Reveal;
+	RevealSpeed = InArgs._RevealSpeed;
 	const TSharedRef<FSlaterRichDecorator> Decorator = MakeShared<FSlaterRichDecorator>(Snapshot.ToSharedRef());
 	ChildSlot
 	[
@@ -583,6 +752,8 @@ void SSlaterRichText::Construct(const FArguments& InArgs)
 
 void SSlaterRichText::SetRichText(const FString& Text, const ISlaterStyleSource& Style)
 {
+	const bool bChanged = !bHasText || Source != Text;
+	bHasText = true;
 	Source = Text;
 	// Resolve the tokens this text names, so the decorators never touch the style.
 	Snapshot->Colors.Reset();
@@ -614,7 +785,80 @@ void SSlaterRichText::SetRichText(const FString& Text, const ISlaterStyleSource&
 			}
 		}
 	}
-	Block->SetText(FText::FromString(Text));
+	if (RevealMode == Slater::ERichReveal::None)
+	{
+		Shown = Text;
+		Block->SetText(FText::FromString(Shown));
+		return;
+	}
+
+	// T-545: a changed text starts over; the same text again (a rebind) keeps its progress.
+	if (bChanged)
+	{
+		RevealTotal = Slater::RichRevealTotal(Text, RevealMode);
+		Revealed = Slater::GetMotionScale() > 0.f ? 0.0 : RevealTotal;
+	}
+	ShownCount = -1;
+	ShowRevealed();
+	if (Revealed >= RevealTotal)
+	{
+		StopRevealTimer();
+	}
+	else if (!RevealTimer.IsValid() && FSlateApplication::IsInitialized())
+	{
+		RevealTimer = RegisterActiveTimer(0.f, FWidgetActiveTimerDelegate::CreateSP(this, &SSlaterRichText::OnRevealTimer));
+	}
+}
+
+int32 SSlaterRichText::GetRevealedCount() const
+{
+	return RevealMode == Slater::ERichReveal::None ? 0 : FMath::Min(RevealTotal, FMath::FloorToInt(Revealed));
+}
+
+void SSlaterRichText::ShowRevealed()
+{
+	// The block only re-lays-out when the count of whole steps moved, not on every tick.
+	const int32 Count = GetRevealedCount();
+	if (Count == ShownCount)
+	{
+		return;
+	}
+	ShownCount = Count;
+	Shown = Count >= RevealTotal ? Source : Slater::RichRevealPrefix(Source, RevealMode, Count);
+	Block->SetText(FText::FromString(Shown));
+}
+
+void SSlaterRichText::StopRevealTimer()
+{
+	if (RevealTimer.IsValid())
+	{
+		UnRegisterActiveTimer(RevealTimer.ToSharedRef());
+		RevealTimer.Reset();
+	}
+}
+
+bool SSlaterRichText::AdvanceReveal(float DeltaTime)
+{
+	if (RevealMode == Slater::ERichReveal::None || Revealed >= RevealTotal)
+	{
+		return false;
+	}
+	// Motion scale 0 (tests, a reduce-motion setting): everything at once.
+	// The scale multiplies the time the whole reveal takes, as it does for every transition.
+	const float Scale = Slater::GetMotionScale();
+	Revealed = Scale > 0.f ? FMath::Min<double>(RevealTotal, Revealed + FMath::Max(0.f, DeltaTime) * RevealSpeed / Scale) : RevealTotal;
+	ShowRevealed();
+	return Revealed < RevealTotal;
+}
+
+EActiveTimerReturnType SSlaterRichText::OnRevealTimer(double InCurrentTime, float InDeltaTime)
+{
+	if (AdvanceReveal(InDeltaTime))
+	{
+		return EActiveTimerReturnType::Continue;
+	}
+	RevealTimer.Reset();
+	return EActiveTimerReturnType::Stop;
 }
 
 const TArray<FSlaterRichRun>& SSlaterRichText::GetRuns() const

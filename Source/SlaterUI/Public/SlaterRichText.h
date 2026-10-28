@@ -42,6 +42,26 @@ namespace Slater
 
 	/** Adds `rich-text` (SlaterRichText.h, T-527). */
 	SLATERUI_API void RegisterRichTextElements(FSlaterElementRegistry& Registry);
+
+	/** How `rich-text` reveals its text (T-545): not at all, by character or by word. */
+	enum class ERichReveal : uint8
+	{
+		None,
+		Char,
+		Word,
+	};
+
+	/**
+	 * How many reveal steps the text has (T-545): visible characters (an `&lt;` entity and an `img` count as one) or words (an
+	 * `img` is a word). Tags are not steps.
+	 */
+	SLATERUI_API int32 RichRevealTotal(const FString& Text, ERichReveal Mode);
+
+	/**
+	 * The markup that shows the first Count steps (T-545): the text cut after the Count-th character or word. A cut inside a
+	 * run closes it with `</>`, so a tag never shows as text. Count at or above the total returns the whole text.
+	 */
+	SLATERUI_API FString RichRevealPrefix(const FString& Text, ERichReveal Mode, int32 Count);
 }
 
 /**
@@ -59,11 +79,16 @@ public:
 		, _Color(FLinearColor::White)
 		, _Wrap(false)
 		, _Justify(ETextJustify::Left)
+		, _Reveal(Slater::ERichReveal::None)
+		, _RevealSpeed(0.f)
 	{}
 		SLATE_ARGUMENT(FSlaterFont, Font)
 		SLATE_ARGUMENT(FLinearColor, Color)
 		SLATE_ARGUMENT(bool, Wrap)
 		SLATE_ARGUMENT(ETextJustify::Type, Justify)
+		/** Typewriter reveal (T-545): characters or words appear at RevealSpeed steps per second. */
+		SLATE_ARGUMENT(Slater::ERichReveal, Reveal)
+		SLATE_ARGUMENT(float, RevealSpeed)
 	SLATE_END_ARGS()
 
 	SSlaterRichText();
@@ -80,8 +105,35 @@ public:
 	/** The styled runs of the text as laid out. The layout happens on the first size query or paint, so call `SlatePrepass` first. */
 	const TArray<FSlaterRichRun>& GetRuns() const;
 
+	/**
+	 * Moves the reveal on by DeltaTime seconds (T-545). The active timer calls it; a test calls it with a manual clock.
+	 * Shows everything at once when `Slater.MotionScale` is 0. True while text is still to appear.
+	 */
+	bool AdvanceReveal(float DeltaTime);
+
+	/** The steps shown so far and the steps in all (characters or words by the mode); equal when nothing is left to reveal. */
+	int32 GetRevealedCount() const;
+	int32 GetRevealTotal() const { return RevealTotal; }
+	/** The markup the block shows right now: the source, or its prefix while revealing. */
+	const FString& GetShownMarkup() const { return Shown; }
+	/** True while the active timer runs, i.e. while text is still to appear. */
+	bool IsRevealing() const { return RevealTimer.IsValid(); }
+
 private:
+	EActiveTimerReturnType OnRevealTimer(double InCurrentTime, float InDeltaTime);
+	void ShowRevealed();
+	void StopRevealTimer();
+
 	FString Source;
+	FString Shown;
+	bool bHasText = false;
+	Slater::ERichReveal RevealMode = Slater::ERichReveal::None;
+	float RevealSpeed = 0.f;
+	/** Steps revealed, fractional between ticks. */
+	double Revealed = 0.0;
+	int32 RevealTotal = 0;
+	int32 ShownCount = -1;
+	TSharedPtr<FActiveTimerHandle> RevealTimer;
 	TSharedPtr<SRichTextBlock> Block;
 	TSharedPtr<FSlaterRichSnapshot> Snapshot;
 };
